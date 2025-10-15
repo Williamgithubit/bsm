@@ -1,0 +1,193 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  password      String?
+  role          String    @default("user")
+  status        String    @default("active")
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  accounts      Account[]
+  sessions      Session[]
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  email     String
+  token     String   @unique
+  expires   DateTime
+  createdAt DateTime @default(now())
+
+  @@index([email])
+}
+
+// Sports Management Models
+
+model Athlete {
+  id            String   @id @default(cuid())
+  name          String
+  email         String?  @unique
+  age           Int?
+  position      String?  // e.g., forward, midfielder, goalkeeper
+  bio           String?  @db.Text
+  stats         Json?    // goals, assists, matches played, etc.
+  photos        Json?    // array of photo URLs
+  videos        Json?    // array of video URLs
+  location      String?  // Liberia regions
+  sport         String   @default("football")
+  level         String   @default("grassroots") // grassroots, semi-pro, pro
+  scoutingStatus String  @default("active") // active, scouted, signed
+  trainingProgram String?
+  performanceNotes String? @db.Text
+  nilDeals      Json?    // NIL deal opportunities
+  status        String   @default("active")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  // Relations
+  eventRegistrations EventRegistration[]
+  trainingSessions   TrainingSession[]
+  
+  @@index([sport])
+  @@index([level])
+  @@index([scoutingStatus])
+}
+
+model Event {
+  id          String   @id @default(cuid())
+  title       String
+  description String?  @db.Text
+  type        String   // tournament, training_camp, outreach, match
+  startDate   DateTime
+  endDate     DateTime?
+  location    String
+  capacity    Int?
+  status      String   @default("active") // active, cancelled, completed
+  createdBy   String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  registrations EventRegistration[]
+  
+  @@index([type])
+  @@index([startDate])
+}
+
+model EventRegistration {
+  id        String   @id @default(cuid())
+  eventId   String
+  athleteId String
+  status    String   @default("registered") // registered, attended, no_show
+  notes     String?
+  createdAt DateTime @default(now())
+  
+  // Relations
+  event   Event   @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  athlete Athlete @relation(fields: [athleteId], references: [id], onDelete: Cascade)
+  
+  @@unique([eventId, athleteId])
+}
+
+model TrainingSession {
+  id          String   @id @default(cuid())
+  athleteId   String
+  date        DateTime
+  type        String   // individual, group, match
+  duration    Int?     // minutes
+  notes       String?  @db.Text
+  performance Json?    // performance metrics
+  createdBy   String
+  createdAt   DateTime @default(now())
+  
+  // Relations
+  athlete Athlete @relation(fields: [athleteId], references: [id], onDelete: Cascade)
+  
+  @@index([athleteId])
+  @@index([date])
+}
+
+model BlogPost {
+  id          String   @id @default(cuid())
+  title       String
+  content     String   @db.Text
+  excerpt     String?
+  category    String   // news, announcements, success_stories, match_reports
+  tags        Json?    // array of tags
+  featuredImage String?
+  status      String   @default("draft") // draft, published, archived
+  seoTitle    String?
+  seoDescription String?
+  publishedAt DateTime?
+  authorId    String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@index([category])
+  @@index([status])
+  @@index([publishedAt])
+}
+
+model ContactSubmission {
+  id        String   @id @default(cuid())
+  name      String
+  email     String
+  subject   String
+  message   String   @db.Text
+  category  String   @default("general") // partnerships, events, scouting
+  status    String   @default("new") // new, responded, archived
+  response  String?  @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@index([status])
+  @@index([category])
+}
