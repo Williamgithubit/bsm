@@ -1,0 +1,19 @@
+{
+  "name": "bsm-functions",
+  "version": "1.0.0",
+  "engines": {
+    "node": "18"
+  },
+  "main": "index.js",
+  "scripts": {
+    "lint": "eslint .",
+    "deploy": "firebase deploy --only functions"
+  },
+  "dependencies": {
+    "firebase-admin": "^11.10.0",
+    "firebase-functions": "^4.3.0"
+  },
+  "devDependencies": {
+    "eslint": "^8.0.0"
+  }
+}
