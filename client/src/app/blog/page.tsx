@@ -1,25 +1,32 @@
-'use client';
-import React, { useState, useEffect } from 'react';
-import Image from 'next/image';
-import { motion } from 'framer-motion';
-import { FiCalendar, FiClock, FiSearch, FiArrowRight } from 'react-icons/fi';
-import { FaFacebook, FaTwitter, FaLinkedin } from 'react-icons/fa';
-import Button from '@/components/ui/Button';
-import { getBlogPosts, BlogPost } from '@/services/blogService';
+"use client";
+import React, { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import Image from "next/image";
+import { motion } from "framer-motion";
+import { FiSearch, FiCalendar, FiClock, FiArrowRight } from "react-icons/fi";
+import { FaFacebook, FaTwitter, FaLinkedin } from "react-icons/fa";
+import Button from "@/components/ui/Button";
+import { getBlogPosts } from "@/services/blogService";
+import type { BlogPost } from "@/types/blog";
 
 const Blog = () => {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [activeCategory, setActiveCategory] = useState('all');
+  const router = useRouter();
+  const [searchQuery, setSearchQuery] = useState("");
+  const [activeCategory, setActiveCategory] = useState("all");
   const [blogPosts, setBlogPosts] = useState<BlogPost[]>([]);
   const [loading, setLoading] = useState(true);
-  const [categories, setCategories] = useState([
-    { id: 'all', name: 'All Posts' },
-    { id: 'updates', name: 'News & Updates' },
-    { id: 'events', name: 'Events' },
-    { id: 'stories', name: 'Success Stories' },
-    { id: 'tech', name: 'Tech Tips' },
-    { id: 'training', name: 'Training' },
-    { id: 'Training', name: 'Training' } // Handle both cases
+  interface Category {
+    id: string;
+    name: string;
+  }
+
+  const [categories] = useState<Category[]>([
+    { id: "all", name: "All Posts" },
+    { id: "updates", name: "News & Updates" },
+    { id: "events", name: "Events" },
+    { id: "stories", name: "Success Stories" },
+    { id: "tech", name: "Tech Tips" },
+    { id: "training", name: "Training" },
   ]);
 
   // Fetch blog posts from Firebase
@@ -29,24 +36,26 @@ const Blog = () => {
         setLoading(true);
         // Fetch all posts and filter published ones client-side to avoid index requirement
         const allPosts = await getBlogPosts({
-          orderByField: 'createdAt',
-          orderDirection: 'desc'
+          orderByField: "createdAt",
+          orderDirection: "desc",
         });
         // Filter for published posts only
-        const publishedPosts = allPosts.filter(post => post.status === 'published');
+        const publishedPosts = allPosts.filter(
+          (post) => post.status === "published"
+        );
         // Debug: Log the posts to check tags
-        console.log('Published posts:', publishedPosts);
-        publishedPosts.forEach(post => {
+        console.log("Published posts:", publishedPosts);
+        publishedPosts.forEach((post) => {
           console.log(`Post "${post.title}" tags:`, post.tags);
           // Temporary fix: Add sample tags if none exist for testing
           if (!post.tags || post.tags.length === 0) {
-            post.tags = ['digital-literacy', 'education', 'youth-empowerment'];
+            post.tags = ["digital-literacy", "education", "youth-empowerment"];
             console.log(`Added sample tags to "${post.title}":`, post.tags);
           }
         });
         setBlogPosts(publishedPosts);
       } catch (error) {
-        console.error('Error fetching blog posts:', error);
+        console.error("Error fetching blog posts:", error);
       } finally {
         setLoading(false);
       }
@@ -55,31 +64,25 @@ const Blog = () => {
     fetchBlogPosts();
   }, []);
 
-  const filteredPosts = blogPosts.filter(post => {
-    const matchesSearch = post.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                         post.excerpt.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCategory = activeCategory === 'all' || post.category === activeCategory;
+  const filteredPosts = blogPosts.filter((post) => {
+    const matchesSearch =
+      post.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      post.excerpt.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesCategory =
+      activeCategory === "all" || post.category === activeCategory;
     return matchesSearch && matchesCategory;
   });
 
-  const formatDate = (timestamp: any) => {
-    if (!timestamp) return new Date().toLocaleDateString('en-US');
-    
-    let date: Date;
-    if (timestamp.toDate && typeof timestamp.toDate === 'function') {
-      date = timestamp.toDate();
-    } else if (timestamp.seconds) {
-      date = new Date(timestamp.seconds * 1000);
-    } else {
-      date = new Date(timestamp);
-    }
-    
-    const options: Intl.DateTimeFormatOptions = { 
-      year: 'numeric', 
-      month: 'long', 
-      day: 'numeric' 
+  const formatDate = (timestamp: string | null) => {
+    if (!timestamp) return new Date().toLocaleDateString("en-US");
+
+    const date = new Date(timestamp);
+    const options: Intl.DateTimeFormatOptions = {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
     };
-    return date.toLocaleDateString('en-US', options);
+    return date.toLocaleDateString("en-US", options);
   };
 
   const calculateReadTime = (content: string) => {
@@ -96,9 +99,10 @@ const Blog = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h1 className="text-4xl md:text-5xl font-bold mb-4">TTI Blog</h1>
           <p className="text-xl text-blue-100 max-w-3xl mx-auto mb-8">
-            Insights, stories, and updates from our journey to transform lives through technology education
+            Insights, stories, and updates from our journey to transform lives
+            through technology education
           </p>
-          
+
           {/* Search Bar */}
           <div className="max-w-2xl mx-auto relative">
             <div className="relative">
@@ -124,8 +128,8 @@ const Blog = () => {
               onClick={() => setActiveCategory(category.id)}
               className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
                 activeCategory === category.id
-                  ? 'bg-[#000054] text-white'
-                  : 'bg-white text-gray-700 hover:bg-gray-100'
+                  ? "bg-[#000054] text-white"
+                  : "bg-white text-gray-700 hover:bg-gray-100"
               }`}
             >
               {category.name}
@@ -142,7 +146,7 @@ const Blog = () => {
 
         {/* Featured Post */}
         {!loading && filteredPosts.length > 0 && (
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
@@ -152,8 +156,11 @@ const Blog = () => {
               <div className="md:flex">
                 <div className="md:flex-shrink-0 md:w-1/2">
                   <div className="relative h-full w-full min-h-[300px]">
-                    <Image 
-                      src={filteredPosts[0].featuredImage || 'https://images.unsplash.com/photo-1522202176988-66273c2fd55f?ixlib=rb-4.0.3&auto=format&fit=crop&w=1471&q=80'} 
+                    <Image
+                      src={
+                        filteredPosts[0].featuredImage ||
+                        "https://images.unsplash.com/photo-1522202176988-66273c2fd55f?ixlib=rb-4.0.3&auto=format&fit=crop&w=1471&q=80"
+                      }
                       alt={filteredPosts[0].title}
                       fill
                       className="object-cover"
@@ -170,12 +177,16 @@ const Blog = () => {
                     {filteredPosts[0].title}
                   </h2>
                   <p className="mt-2 text-gray-600 mb-6">
-                    {filteredPosts[0].excerpt || filteredPosts[0].content.substring(0, 200) + '...'}
+                    {filteredPosts[0].excerpt ||
+                      filteredPosts[0].content.substring(0, 200) + "..."}
                   </p>
                   <div className="flex items-center text-sm text-gray-500 mb-6">
                     <span className="flex items-center mr-4">
                       <FiCalendar className="mr-1" />
-                      {formatDate(filteredPosts[0].publishedAt)}
+                      {formatDate(
+                        filteredPosts[0].publishedAt ||
+                          filteredPosts[0].createdAt
+                      )}
                     </span>
                     <span className="flex items-center">
                       <FiClock className="mr-1" />
@@ -183,10 +194,12 @@ const Blog = () => {
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <Button 
-                      size="sm" 
+                    <Button
+                      size="sm"
                       className="group"
-                      onClick={() => window.location.href = `/blog/${filteredPosts[0].slug}`}
+                      onClick={() =>
+                        (window.location.href = `/blog/${filteredPosts[0].slug}`)
+                      }
                     >
                       Read Full Story
                       <FiArrowRight className="ml-2 group-hover:translate-x-1 transition-transform" />
@@ -204,17 +217,21 @@ const Blog = () => {
                     </div>
                   </div>
                   {/* Tags for Featured Post */}
-                  {filteredPosts[0].tags && filteredPosts[0].tags.length > 0 && (
-                    <div className="mt-4 pt-4 border-t border-gray-100">
-                      <div className="flex flex-wrap gap-2">
-                        {filteredPosts[0].tags.map((tag, i) => (
-                          <span key={i} className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded">
-                            #{tag}
-                          </span>
-                        ))}
+                  {filteredPosts[0].tags &&
+                    filteredPosts[0].tags.length > 0 && (
+                      <div className="mt-4 pt-4 border-t border-gray-100">
+                        <div className="flex flex-wrap gap-2">
+                          {filteredPosts[0].tags.map((tag, i) => (
+                            <span
+                              key={i}
+                              className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded"
+                            >
+                              #{tag}
+                            </span>
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    )}
                 </div>
               </div>
             </div>
@@ -233,8 +250,11 @@ const Blog = () => {
                 className="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-xl transition-shadow duration-300"
               >
                 <div className="relative w-full h-48">
-                  <Image 
-                    src={post.featuredImage || 'https://images.unsplash.com/photo-1522202176988-66273c2fd55f?ixlib=rb-4.0.3&auto=format&fit=crop&w=1471&q=80'} 
+                  <Image
+                    src={
+                      post.featuredImage ||
+                      "https://images.unsplash.com/photo-1522202176988-66273c2fd55f?ixlib=rb-4.0.3&auto=format&fit=crop&w=1471&q=80"
+                    }
                     alt={post.title}
                     fill
                     className="object-cover"
@@ -244,26 +264,27 @@ const Blog = () => {
                 <div className="p-6">
                   <div className="flex justify-between items-center mb-3">
                     <span className="text-xs font-medium text-[#E32845] bg-red-50 px-3 py-1 rounded-full">
-                      {categories.find(cat => cat.id === post.category)?.name || post.category}
+                      {categories.find((cat) => cat.id === post.category)
+                        ?.name || post.category}
                     </span>
                     <div className="flex items-center text-xs text-gray-500">
                       <FiCalendar className="mr-1" />
-                      {formatDate(post.publishedAt)}
+                      {formatDate(post.publishedAt || post.createdAt)}
                     </div>
                   </div>
                   <h3 className="text-xl font-bold text-gray-900 mb-2">
                     {post.title}
                   </h3>
                   <p className="text-gray-600 mb-4 line-clamp-2">
-                    {post.excerpt || post.content.substring(0, 150) + '...'}
+                    {post.excerpt || post.content.substring(0, 150) + "..."}
                   </p>
                   <div className="flex justify-between items-center">
                     <span className="flex items-center text-sm text-gray-500">
                       <FiClock className="mr-1" />
                       {calculateReadTime(post.content)}
                     </span>
-                    <button 
-                      onClick={() => window.location.href = `/blog/${post.slug}`}
+                    <button
+                      onClick={() => router.push(`/blog/${post.slug}`)}
                       className="text-[#000054] font-medium hover:text-[#1e1e8f] transition-colors flex items-center"
                     >
                       Read More
@@ -275,7 +296,10 @@ const Blog = () => {
                     <div className="mt-4 pt-4 border-t border-gray-100">
                       <div className="flex flex-wrap gap-2">
                         {post.tags.map((tag, i) => (
-                          <span key={i} className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded">
+                          <span
+                            key={i}
+                            className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded"
+                          >
                             #{tag}
                           </span>
                         ))}
@@ -292,11 +316,13 @@ const Blog = () => {
         {!loading && filteredPosts.length === 0 && (
           <div className="text-center py-20">
             <div className="text-gray-400 text-6xl mb-4">📝</div>
-            <h3 className="text-xl font-semibold text-gray-700 mb-2">No blog posts found</h3>
+            <h3 className="text-xl font-semibold text-gray-700 mb-2">
+              No blog posts found
+            </h3>
             <p className="text-gray-500">
-              {searchQuery || activeCategory !== 'all' 
-                ? 'Try adjusting your search or filter criteria.' 
-                : 'Check back soon for new content!'}
+              {searchQuery || activeCategory !== "all"
+                ? "Try adjusting your search or filter criteria."
+                : "Check back soon for new content!"}
             </p>
           </div>
         )}
@@ -304,17 +330,23 @@ const Blog = () => {
         {/* Newsletter Subscription */}
         <div className="bg-gradient-to-r from-[#000054] to-[#1e1e8f] rounded-2xl p-8 md:p-12 text-white overflow-hidden relative mb-16">
           <div className="relative z-10 max-w-3xl mx-auto text-center">
-            <h2 className="text-2xl md:text-3xl font-bold mb-4">Stay Updated</h2>
+            <h2 className="text-2xl md:text-3xl font-bold mb-4">
+              Stay Updated
+            </h2>
             <p className="text-blue-100 mb-8 max-w-2xl mx-auto">
-              Subscribe to our newsletter to receive the latest news, updates, and exclusive content directly to your inbox.
+              Subscribe to our newsletter to receive the latest news, updates,
+              and exclusive content directly to your inbox.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 max-w-lg mx-auto">
-              <input 
-                type="email" 
-                placeholder="Enter your email" 
+              <input
+                type="email"
+                placeholder="Enter your email"
                 className="flex-1 px-6 py-3 rounded-full text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#E32845] bg-white"
               />
-              <Button variant="secondary" className="whitespace-nowrap rounded-full">
+              <Button
+                variant="secondary"
+                className="whitespace-nowrap rounded-full"
+              >
                 Subscribe
               </Button>
             </div>
@@ -331,12 +363,12 @@ const Blog = () => {
                 Previous
               </button>
               {[1, 2, 3].map((page) => (
-                <button 
+                <button
                   key={page}
                   className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                    page === 1 
-                      ? 'bg-[#000054] text-white' 
-                      : 'bg-white text-gray-700 hover:bg-gray-100'
+                    page === 1
+                      ? "bg-[#000054] text-white"
+                      : "bg-white text-gray-700 hover:bg-gray-100"
                   } transition-colors`}
                 >
                   {page}

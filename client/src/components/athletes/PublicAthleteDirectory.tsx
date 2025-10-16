@@ -13,11 +13,13 @@ import AthleteCardPublic from "./AthleteCardPublic";
 
 export default function PublicAthleteDirectory() {
   const [search, setSearch] = useState("");
-  const [sport, setSport] = useState("football");
-  const [level, setLevel] = useState("grassroots");
+  // Default to show all sports/levels publicly so newly added athletes are visible
+  const [sport, setSport] = useState("all");
+  const [level, setLevel] = useState("all");
   const [county, setCounty] = useState("all");
   const [athletes, setAthletes] = useState<Athlete[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const load = async () => {
@@ -38,8 +40,10 @@ export default function PublicAthleteDirectory() {
           pageSize: 100,
         });
         setAthletes(res.athletes);
+        setError(null);
       } catch (err) {
         console.error(err);
+        setError(err instanceof Error ? err.message : String(err));
       } finally {
         setLoading(false);
       }
@@ -140,6 +144,18 @@ export default function PublicAthleteDirectory() {
         {loading ? (
           <div className="flex justify-center py-20">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#000054]"></div>
+          </div>
+        ) : error ? (
+          <div className="text-center py-20">
+            <div className="text-red-400 text-6xl mb-4">⚠️</div>
+            <h3 className="text-xl font-semibold text-gray-700 mb-2">
+              Unable to load athletes
+            </h3>
+            <p className="text-gray-500 mb-4">{error}</p>
+            <p className="text-gray-500">
+              If this is a permissions issue, please sign in as an admin or
+              adjust Firestore rules.
+            </p>
           </div>
         ) : athletes.length === 0 ? (
           <div className="text-center py-20">

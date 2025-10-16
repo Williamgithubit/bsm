@@ -18,14 +18,11 @@ import {
   onSnapshot,
   Unsubscribe,
 } from "firebase/firestore";
-import {
-  ref,
-  uploadBytes,
-  getDownloadURL,
-  deleteObject,
-  listAll,
-} from "firebase/storage";
-import { db, storage } from "@/services/firebase";
+import { db } from "@/services/firebase";
+import { 
+  uploadAthleteMedia as uploadAthleteMediaToCloudinary,
+  deleteAthleteMediaFromCloudinary 
+} from "@/services/cloudinaryService";
 import {
   Athlete,
   AthleteFilters,
@@ -35,7 +32,6 @@ import {
 } from "@/types/athlete";
 
 const COLLECTION_NAME = "athletes";
-const STORAGE_PATH = "athletes";
 
 export class AthleteService {
   // Create a new athlete
@@ -44,11 +40,20 @@ export class AthleteService {
   ): Promise<string> {
     try {
       const now = new Date().toISOString();
-      const athlete: Omit<Athlete, "id"> = {
-        ...athleteData,
+      
+      // Filter out undefined values to avoid Firebase errors
+      const filteredAthleteData: any = {};
+      Object.entries(athleteData).forEach(([key, value]) => {
+        if (value !== undefined) {
+          filteredAthleteData[key] = value;
+        }
+      });
+      
+      const athlete: any = {
+        ...filteredAthleteData,
         createdAt: now,
         updatedAt: now,
-        status: athleteData.status || "active",
+        status: filteredAthleteData.status || "active",
       };
 
       const docRef = await addDoc(collection(db, COLLECTION_NAME), athlete);
@@ -82,8 +87,17 @@ export class AthleteService {
   ): Promise<void> {
     try {
       const docRef = doc(db, COLLECTION_NAME, id);
+      
+      // Filter out undefined values to avoid Firebase errors
+      const filteredUpdates: any = {};
+      Object.entries(updates).forEach(([key, value]) => {
+        if (value !== undefined) {
+          filteredUpdates[key] = value;
+        }
+      });
+      
       await updateDoc(docRef, {
-        ...updates,
+        ...filteredUpdates,
         updatedAt: new Date().toISOString(),
       });
     } catch (error) {
@@ -288,7 +302,7 @@ export class AthleteService {
     }
   }
 
-  // Upload athlete media (photos/videos)
+  // Upload athlete media (photos/videos) using Cloudinary
   static async uploadAthleteMedia(
     athleteId: string,
     file: File,
@@ -296,24 +310,27 @@ export class AthleteService {
     caption?: string
   ): Promise<AthleteMedia> {
     try {
-      const timestamp = Date.now();
-      const fileName = `${timestamp}_${file.name}`;
-      const filePath = `${STORAGE_PATH}/${athleteId}/${type}s/${fileName}`;
-      const storageRef = ref(storage, filePath);
-
-      // Upload file
-      const snapshot = await uploadBytes(storageRef, file);
-      const downloadURL = await getDownloadURL(snapshot.ref);
+      // Upload to Cloudinary
+      const cloudinaryResult = await uploadAthleteMediaToCloudinary(
+        file,
+        athleteId,
+        type,
+        caption
+      );
 
       const media: AthleteMedia = {
-        id: timestamp.toString(),
-        url: downloadURL,
+        id: cloudinaryResult.publicId,
+        url: cloudinaryResult.url,
         type,
-        caption,
         uploadedAt: new Date().toISOString(),
         size: file.size,
         mimeType: file.type,
       };
+
+      // Only add caption if it has a value
+      if (caption) {
+        media.caption = caption;
+      }
 
       // Update athlete document with new media
       const athlete = await this.getAthleteById(athleteId);
@@ -329,7 +346,7 @@ export class AthleteService {
     }
   }
 
-  // Delete athlete media
+  // Delete athlete media using Cloudinary
   static async deleteAthleteMedia(
     athleteId: string,
     mediaId?: string
@@ -341,9 +358,12 @@ export class AthleteService {
         if (athlete?.media) {
           const mediaItem = athlete.media.find((m) => m.id === mediaId);
           if (mediaItem) {
-            // Delete from storage
-            const storageRef = ref(storage, mediaItem.url);
-            await deleteObject(storageRef);
+            // Delete from Cloudinary using the public ID (stored as media.id)
+            await deleteAthleteMediaFromCloudinary(
+              athleteId,
+              mediaItem.id,
+              mediaItem.type
+            );
 
             // Update athlete document
             const updatedMedia = athlete.media.filter((m) => m.id !== mediaId);
@@ -352,24 +372,21 @@ export class AthleteService {
         }
       } else {
         // Delete all media for athlete
-        const folderRef = ref(storage, `${STORAGE_PATH}/${athleteId}`);
-        const listResult = await listAll(folderRef);
-
-        // Delete all files
-        const deletePromises = listResult.items.map((item) =>
-          deleteObject(item)
-        );
-        await Promise.all(deletePromises);
-
-        // Delete subfolders
-        const subfolderPromises = listResult.prefixes.map(async (prefix) => {
-          const subList = await listAll(prefix);
-          const subDeletePromises = subList.items.map((item) =>
-            deleteObject(item)
+        const athlete = await this.getAthleteById(athleteId);
+        if (athlete?.media) {
+          // Delete each media item from Cloudinary
+          const deletePromises = athlete.media.map((mediaItem) =>
+            deleteAthleteMediaFromCloudinary(
+              athleteId,
+              mediaItem.id,
+              mediaItem.type
+            )
           );
-          return Promise.all(subDeletePromises);
-        });
-        await Promise.all(subfolderPromises);
+          await Promise.all(deletePromises);
+
+          // Clear media from athlete document
+          await this.updateAthlete(athleteId, { media: [] });
+        }
       }
     } catch (error) {
       console.error("Error deleting athlete media:", error);
@@ -502,29 +519,53 @@ export class AthleteService {
 
         try {
           const values = lines[i].split(",").map((v) => v.replace(/"/g, ""));
+          
+          // Build athlete data without undefined values for Firebase compatibility
           const athleteData: Partial<Athlete> = {
             name: values[0] || "",
-            age: values[1] ? parseInt(values[1]) : undefined,
-            position: values[2] || undefined,
             sport: values[3] || "football",
             level: (values[4] as any) || "grassroots",
-            county: values[5] || undefined,
-            location: values[6] || undefined,
             scoutingStatus: (values[7] as any) || "active",
-            contact: {
-              email: values[8] || undefined,
-              phone: values[9] || undefined,
-            },
-            bio: values[10] || undefined,
-            trainingProgram: values[11] || undefined,
-            stats: {
-              goals: values[12] ? parseInt(values[12]) : undefined,
-              assists: values[13] ? parseInt(values[13]) : undefined,
-              matches: values[14] ? parseInt(values[14]) : undefined,
-            },
             createdBy: userId,
             status: "active",
           };
+
+          // Only add fields that have values
+          if (values[1] && !isNaN(parseInt(values[1]))) {
+            athleteData.age = parseInt(values[1]);
+          }
+          if (values[2]) {
+            athleteData.position = values[2];
+          }
+          if (values[5]) {
+            athleteData.county = values[5];
+          }
+          if (values[6]) {
+            athleteData.location = values[6];
+          }
+          if (values[10]) {
+            athleteData.bio = values[10];
+          }
+          if (values[11]) {
+            athleteData.trainingProgram = values[11];
+          }
+
+          // Handle contact info
+          const contact: any = {};
+          if (values[8]) contact.email = values[8];
+          if (values[9]) contact.phone = values[9];
+          if (Object.keys(contact).length > 0) {
+            athleteData.contact = contact;
+          }
+
+          // Handle stats
+          const stats: any = {};
+          if (values[12] && !isNaN(parseInt(values[12]))) stats.goals = parseInt(values[12]);
+          if (values[13] && !isNaN(parseInt(values[13]))) stats.assists = parseInt(values[13]);
+          if (values[14] && !isNaN(parseInt(values[14]))) stats.matches = parseInt(values[14]);
+          if (Object.keys(stats).length > 0) {
+            athleteData.stats = stats;
+          }
 
           if (!athleteData.name) {
             errors.push(`Row ${i + 1}: Name is required`);

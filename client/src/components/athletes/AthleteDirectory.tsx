@@ -87,6 +87,8 @@ export default function AthleteDirectory({
   const [formDialogOpen, setFormDialogOpen] = useState(openDialog);
   const [bulkDialogOpen, setBulkDialogOpen] = useState(false);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [athleteToDelete, setAthleteToDelete] = useState<string | null>(null);
   const [formMode, setFormMode] = useState<"add" | "edit">("add");
 
   // Filters and pagination
@@ -156,6 +158,21 @@ export default function AthleteDirectory({
   // Effects
   useEffect(() => {
     loadAthletes();
+    
+    // Set up real-time subscription
+    const unsubscribe = AthleteService.subscribeToAthletes(
+      filters,
+      (realTimeAthletes) => {
+        setAthletes(realTimeAthletes);
+        setPagination(prev => ({
+          ...prev,
+          total: realTimeAthletes.length,
+          totalPages: Math.ceil(realTimeAthletes.length / prev.pageSize)
+        }));
+      }
+    );
+    
+    return () => unsubscribe();
   }, [loadAthletes]);
 
   useEffect(() => {
@@ -218,11 +235,18 @@ export default function AthleteDirectory({
     setFormDialogOpen(true);
   };
 
-  const handleDeleteAthlete = async (athleteId: string) => {
+  const handleDeleteAthlete = (athleteId: string) => {
     if (!userRole.permissions.canDelete) return;
+    
+    setAthleteToDelete(athleteId);
+    setDeleteConfirmOpen(true);
+  };
+
+  const confirmDeleteAthlete = async () => {
+    if (!athleteToDelete) return;
 
     try {
-      await AthleteService.deleteAthlete(athleteId);
+      await AthleteService.deleteAthlete(athleteToDelete);
       setSnackbar({
         open: true,
         message: "Athlete deleted successfully",
@@ -235,6 +259,9 @@ export default function AthleteDirectory({
         message: "Failed to delete athlete",
         severity: "error",
       });
+    } finally {
+      setDeleteConfirmOpen(false);
+      setAthleteToDelete(null);
     }
   };
 
@@ -872,6 +899,38 @@ export default function AthleteDirectory({
             }}
           >
             {importing ? <CircularProgress size={20} /> : "Import"}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog
+        open={deleteConfirmOpen}
+        onClose={() => setDeleteConfirmOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>Confirm Delete</DialogTitle>
+        <DialogContent>
+          <Typography>
+            Are you sure you want to delete{" "}
+            <strong>
+              {athleteToDelete 
+                ? athletes.find(a => a.id === athleteToDelete)?.name || "this athlete"
+                : "this athlete"
+              }
+            </strong>
+            ? This action cannot be undone.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteConfirmOpen(false)}>Cancel</Button>
+          <Button
+            onClick={confirmDeleteAthlete}
+            color="error"
+            variant="contained"
+          >
+            Delete
           </Button>
         </DialogActions>
       </Dialog>

@@ -5,15 +5,44 @@ import { FiClock, FiCalendar } from "react-icons/fi";
 import AthleteService from "@/services/athleteService";
 import { Athlete } from "@/types/athlete";
 import { notFound } from "next/navigation";
+import EnquiryService from "@/services/enquiryService";
+import {
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
+  Button,
+  Snackbar,
+  Alert,
+  type AlertColor,
+} from "@mui/material";
 
 interface Props {
   params: { id: string };
 }
 
 export default function AthleteProfilePage({ params }: Props) {
-  const { id } = params;
+  // Next.js may provide `params` as a Promise in newer versions.
+  // If `React.use` is available (Next.js/React helper to unwrap async props), use it.
+  // Otherwise fall back to direct access for compatibility.
+  const resolvedParams =
+    typeof (React as any).use === "function"
+      ? (React as any).use(params)
+      : params;
+  const { id } = resolvedParams as { id: string };
   const [athlete, setAthlete] = useState<Athlete | null>(null);
   const [loading, setLoading] = useState(true);
+  const [contactOpen, setContactOpen] = useState(false);
+  const [contactName, setContactName] = useState("");
+  const [contactEmail, setContactEmail] = useState("");
+  const [contactPhone, setContactPhone] = useState("");
+  const [contactMessage, setContactMessage] = useState("");
+  const [contactSubmitting, setContactSubmitting] = useState(false);
+  const [snackbarOpen, setSnackbarOpen] = useState(false);
+  const [snackbarMessage, setSnackbarMessage] = useState("");
+  const [snackbarSeverity, setSnackbarSeverity] =
+    useState<AlertColor>("success");
 
   useEffect(() => {
     const load = async () => {
@@ -158,7 +187,10 @@ export default function AthleteProfilePage({ params }: Props) {
                 </div>
 
                 <div className="mt-6">
-                  <button className="w-full bg-[#000054] text-white py-2 rounded-full">
+                  <button
+                    className="w-full bg-[#000054] text-white py-2 rounded-full"
+                    onClick={() => setContactOpen(true)}
+                  >
                     Contact/Enquire
                   </button>
                 </div>
@@ -167,6 +199,93 @@ export default function AthleteProfilePage({ params }: Props) {
           )}
         </div>
       </div>
+      {/* Contact Dialog */}
+      <Dialog open={contactOpen} onClose={() => setContactOpen(false)}>
+        <DialogTitle>Contact about {athlete?.name}</DialogTitle>
+        <DialogContent>
+          <TextField
+            fullWidth
+            label="Name"
+            value={contactName}
+            onChange={(e) => setContactName(e.target.value)}
+            sx={{ mt: 1 }}
+          />
+          <TextField
+            fullWidth
+            label="Email"
+            value={contactEmail}
+            onChange={(e) => setContactEmail(e.target.value)}
+            sx={{ mt: 2 }}
+          />
+          <TextField
+            fullWidth
+            label="Phone"
+            value={contactPhone}
+            onChange={(e) => setContactPhone(e.target.value)}
+            sx={{ mt: 2 }}
+          />
+          <TextField
+            fullWidth
+            label="Message"
+            multiline
+            rows={4}
+            value={contactMessage}
+            onChange={(e) => setContactMessage(e.target.value)}
+            sx={{ mt: 2 }}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setContactOpen(false)}>Cancel</Button>
+          <Button
+            variant="contained"
+            disabled={contactSubmitting || !contactName}
+            onClick={async () => {
+              setContactSubmitting(true);
+              try {
+                await EnquiryService.createEnquiry({
+                  athleteId: id,
+                  name: contactName,
+                  email: contactEmail,
+                  phone: contactPhone,
+                  message: contactMessage,
+                });
+                setContactOpen(false);
+                // reset
+                setContactName("");
+                setContactEmail("");
+                setContactPhone("");
+                setContactMessage("");
+                setSnackbarMessage("Enquiry sent — admins will be notified");
+                setSnackbarSeverity("success");
+                setSnackbarOpen(true);
+              } catch (err) {
+                console.error(err);
+                setSnackbarMessage("Failed to send enquiry");
+                setSnackbarSeverity("error");
+                setSnackbarOpen(true);
+              } finally {
+                setContactSubmitting(false);
+              }
+            }}
+          >
+            Send Enquiry
+          </Button>
+        </DialogActions>
+      </Dialog>
+      <Snackbar
+        open={snackbarOpen}
+        autoHideDuration={6000}
+        onClose={() => setSnackbarOpen(false)}
+        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+      >
+        <Alert
+          onClose={() => setSnackbarOpen(false)}
+          severity={snackbarSeverity}
+          sx={{ width: "100%" }}
+        >
+          {snackbarMessage}
+        </Alert>
+      </Snackbar>
     </div>
   );
 }

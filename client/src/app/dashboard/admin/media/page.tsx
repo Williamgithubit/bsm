@@ -4,7 +4,7 @@ import { useEffect } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth } from '@/services/firebase';
 import { useRouter } from 'next/navigation';
-import MediaLibrary from '@/components/admin/MediaLibrary';
+import BSMMediaLibrary from '@/components/admin/BSMMediaLibrary';
 
 export default function AdminMediaPage() {
   const [user, loading] = useAuthState(auth);
@@ -35,7 +35,7 @@ export default function AdminMediaPage() {
           <h1 className="text-3xl font-bold text-gray-900">Media Library</h1>
           <p className="mt-2 text-gray-600">Upload, organize, and manage media files for your content.</p>
         </div>
-        <MediaLibrary />
+        <BSMMediaLibrary />
       </div>
     </div>
   );

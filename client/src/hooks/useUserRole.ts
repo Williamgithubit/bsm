@@ -4,7 +4,7 @@ import { selectAuthState } from '@/store/Auth/authSlice';
 import { UserRole } from '@/types/athlete';
 
 export function useUserRole(): UserRole {
-  const { user } = useAppSelector(selectAuthState);
+  const { user } = useAppSelector((state) => selectAuthState(state));
   const [userRole, setUserRole] = useState<UserRole>({
     role: 'viewer',
     permissions: {
@@ -35,7 +35,22 @@ export function useUserRole(): UserRole {
 
     // Get user role from custom claims or user data
     const userClaims = (user as any).customClaims || {};
-    const role = userClaims.role || 'viewer';
+    let role = userClaims.role;
+    
+    // Fallback: Check if user email or display name indicates admin
+    if (!role) {
+      const email = user.email?.toLowerCase() || '';
+      const displayName = user.displayName?.toLowerCase() || '';
+      
+      // Check for admin indicators
+      if (email.includes('admin') || displayName.includes('admin') || 
+          email === 'admin@benzardsportsmanagement.com' ||
+          displayName === 'admin') {
+        role = 'admin';
+      } else {
+        role = 'viewer';
+      }
+    }
 
     let permissions = {
       canCreate: false,

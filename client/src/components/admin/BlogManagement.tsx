@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import toast, { Toaster } from 'react-hot-toast';
+import toast, { Toaster } from "react-hot-toast";
 import {
   Box,
   Typography,
@@ -33,25 +33,26 @@ import {
   CardContent,
   CardActions,
   Divider,
+  type AlertColor, // Import AlertColor for snackbar severity
 } from "@mui/material";
 import Grid from "@/components/ui/Grid";
 import {
   Add as AddIcon,
   Edit as EditIcon,
   Delete as DeleteIcon,
-  Visibility as ViewIcon,
   Publish as PublishIcon,
   Drafts as DraftsIcon,
   Search as SearchIcon,
   FilterList as FilterIcon,
   Article as ArticleIcon,
+  Image as ImageIcon,
 } from "@mui/icons-material";
 import { useAuthState } from "react-firebase-hooks/auth";
 import { auth } from "@/services/firebase";
+import MediaPicker from "./MediaPicker";
+import type { BlogPost } from "@/types/blog";
+import type { MediaAsset } from "@/types/media";
 import {
-  BlogPost,
-  CreateBlogPostData,
-  UpdateBlogPostData,
   getBlogPosts,
   createBlogPost,
   updateBlogPost,
@@ -60,6 +61,25 @@ import {
   getBlogTags,
 } from "@/services/blogService";
 import RichTextEditor from "./RichTextEditor";
+import { uploadBlogImage } from "@/services/cloudinaryService";
+
+// Unified BlogFormData interface
+interface BlogFormData {
+  title: string;
+  content: string;
+  excerpt: string;
+  category: string;
+  tags: string[];
+  status: "draft" | "published" | "review" | "archived";
+  featured: boolean;
+  seoTitle: string;
+  seoDescription: string;
+  featuredImage: string;
+  _featuredImageFile?: File; // Explicitly include _featuredImageFile
+}
+
+type CreateBlogPostData = Omit<BlogFormData, "_featuredImageFile">;
+type UpdateBlogPostData = Partial<CreateBlogPostData> & { id: string };
 
 interface BlogManagementProps {
   openDialog?: boolean;
@@ -88,11 +108,11 @@ const BlogManagement: React.FC<BlogManagementProps> = ({
   const [snackbar, setSnackbar] = useState({
     open: false,
     message: "",
-    severity: "success" as "success" | "error" | "info" | "warning",
+    severity: "success" as AlertColor, // Use MUI's AlertColor type
   });
+  const [mediaPickerOpen, setMediaPickerOpen] = useState(false);
 
-  // Form state
-  const [formData, setFormData] = useState<CreateBlogPostData>({
+  const [formData, setFormData] = useState<BlogFormData>({
     title: "",
     content: "",
     excerpt: "",
@@ -103,6 +123,7 @@ const BlogManagement: React.FC<BlogManagementProps> = ({
     seoTitle: "",
     seoDescription: "",
     featuredImage: "",
+    _featuredImageFile: undefined,
   });
 
   const theme = useTheme();
@@ -157,18 +178,47 @@ const BlogManagement: React.FC<BlogManagementProps> = ({
   };
 
   const handleCreatePost = async () => {
+    if (!user) {
+      setSnackbar({
+        open: true,
+        message: "You must be logged in to create a post",
+        severity: "error",
+      });
+      return;
+    }
+
     try {
       setIsSubmitting(true);
+      let updatedFormData = { ...formData };
+
+      // If a new featured image file was provided, upload it
+      if (formData._featuredImageFile) {
+        try {
+          const asset = await uploadBlogImage(formData._featuredImageFile);
+          updatedFormData.featuredImage = asset.url;
+        } catch (err) {
+          console.error("Failed to upload featured image:", err);
+          const message = err instanceof Error ? err.message : String(err);
+          toast.error(
+            `Failed to upload featured image. ${message}. Post creation aborted.`
+          );
+          return;
+        }
+      }
+
+      // Remove _featuredImageFile from the data sent to createBlogPost
+      const { _featuredImageFile, ...postData } = updatedFormData;
+
       await createBlogPost(
-        formData,
-        "admin-user-id", // Replace with actual admin user ID
-        "Admin User", // Replace with actual admin name
-        "admin@ttechinitiative.com" // Replace with actual admin email
+        postData,
+        user.uid,
+        user.displayName || "Anonymous",
+        user.email || "unknown@email.com"
       );
 
       toast.success("Blog post created successfully!", {
         duration: 4000,
-        position: 'top-right',
+        position: "top-right",
       });
 
       handleCloseDialog();
@@ -179,7 +229,7 @@ const BlogManagement: React.FC<BlogManagementProps> = ({
       console.error("Error creating post:", error);
       toast.error("Failed to create blog post. Please try again.", {
         duration: 4000,
-        position: 'top-right',
+        position: "top-right",
       });
     } finally {
       setIsSubmitting(false);
@@ -191,16 +241,36 @@ const BlogManagement: React.FC<BlogManagementProps> = ({
 
     try {
       setIsSubmitting(true);
+      let updatedFormData = { ...formData };
+
+      // If a new featured image file was provided, upload it
+      if (formData._featuredImageFile) {
+        try {
+          const asset = await uploadBlogImage(formData._featuredImageFile, editingPost.id);
+          updatedFormData.featuredImage = asset.url;
+        } catch (err) {
+          console.error("Failed to upload featured image:", err);
+          const message = err instanceof Error ? err.message : String(err);
+          toast.error(
+            `Failed to upload featured image. ${message}. Post update aborted.`
+          );
+          return;
+        }
+      }
+
+      // Remove _featuredImageFile from the data sent to updateBlogPost
+      const { _featuredImageFile, ...postData } = updatedFormData;
+
       const updateData: UpdateBlogPostData = {
         id: editingPost.id,
-        ...formData,
+        ...postData,
       };
 
       await updateBlogPost(updateData);
 
       toast.success("Blog post updated successfully!", {
         duration: 4000,
-        position: 'top-right',
+        position: "top-right",
       });
 
       handleCloseDialog();
@@ -211,7 +281,7 @@ const BlogManagement: React.FC<BlogManagementProps> = ({
       console.error("Error updating post:", error);
       toast.error("Failed to update blog post. Please try again.", {
         duration: 4000,
-        position: 'top-right',
+        position: "top-right",
       });
     } finally {
       setIsSubmitting(false);
@@ -226,7 +296,7 @@ const BlogManagement: React.FC<BlogManagementProps> = ({
 
       toast.success("Blog post deleted successfully!", {
         duration: 4000,
-        position: 'top-right',
+        position: "top-right",
       });
 
       setDeleteConfirmOpen(false);
@@ -236,7 +306,7 @@ const BlogManagement: React.FC<BlogManagementProps> = ({
       console.error("Error deleting post:", error);
       toast.error("Failed to delete blog post. Please try again.", {
         duration: 4000,
-        position: 'top-right',
+        position: "top-right",
       });
     }
   };
@@ -247,14 +317,15 @@ const BlogManagement: React.FC<BlogManagementProps> = ({
       setFormData({
         title: post.title,
         content: post.content,
-        excerpt: post.excerpt,
-        featuredImage: post.featuredImage,
-        category: post.category,
-        tags: post.tags,
-        status: post.status,
-        featured: post.featured,
-        seoTitle: post.seoTitle,
-        seoDescription: post.seoDescription,
+        excerpt: post.excerpt || "", // Ensure excerpt is string
+        featuredImage: post.featuredImage || "",
+        category: post.category || "",
+        tags: post.tags || [],
+        status: post.status || "draft",
+        featured: (post as any).featured ?? false,
+        seoTitle: (post as any).seoTitle || "",
+        seoDescription: (post as any).seoDescription || "",
+        _featuredImageFile: undefined,
       });
     } else {
       setEditingPost(null);
@@ -268,6 +339,8 @@ const BlogManagement: React.FC<BlogManagementProps> = ({
         featured: false,
         seoTitle: "",
         seoDescription: "",
+        featuredImage: "",
+        _featuredImageFile: undefined,
       });
     }
     setDialogOpen(true);
@@ -310,7 +383,11 @@ const BlogManagement: React.FC<BlogManagementProps> = ({
     }
   };
 
-  const getStatusColor = (status: BlogPost["status"]) => {
+  type PostStatus = "draft" | "published" | "review" | "archived";
+
+  const getStatusColor = (
+    status: PostStatus
+  ): "success" | "default" | "warning" | "error" => {
     switch (status) {
       case "published":
         return "success";
@@ -329,7 +406,7 @@ const BlogManagement: React.FC<BlogManagementProps> = ({
     const matchesSearch =
       post.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
       post.content.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      post.author.name.toLowerCase().includes(searchTerm.toLowerCase());
+      (post.author?.name || "").toLowerCase().includes(searchTerm.toLowerCase()); // Safely access author.name
     const matchesStatus =
       statusFilter === "all" || post.status === statusFilter;
     const matchesCategory =
@@ -488,23 +565,24 @@ const BlogManagement: React.FC<BlogManagementProps> = ({
                     color="text.secondary"
                     sx={{ mb: 1 }}
                   >
-                    {post.excerpt}
+                    {post.excerpt || "No excerpt available"}
                   </Typography>
                   <Box display="flex" alignItems="center" gap={1} mb={1}>
                     <Avatar sx={{ width: 24, height: 24 }}>
-                      {post.author.name.charAt(0)}
+                      {post.author?.name?.charAt(0) || "?"}
                     </Avatar>
-                    <Typography variant="caption">
-                      {post.author.name}
+                    <Typography variant="body2">
+                      {post.author?.name || "Unknown"}
                     </Typography>
                     <Typography variant="caption" color="text.secondary">
                       •{" "}
-                      {post.createdAt?.toDate?.()?.toLocaleDateString() ||
-                        "Unknown date"}
+                      {post.createdAt
+                        ? new Date(post.createdAt).toLocaleDateString()
+                        : "Unknown date"}
                     </Typography>
                   </Box>
                   <Box display="flex" gap={0.5} flexWrap="wrap">
-                    {post.tags.slice(0, 3).map((tag) => (
+                    {post.tags?.slice(0, 3).map((tag: string) => (
                       <Chip
                         key={tag}
                         label={tag}
@@ -577,9 +655,9 @@ const BlogManagement: React.FC<BlogManagementProps> = ({
                         {post.title}
                       </Typography>
                       <Typography variant="caption" color="text.secondary">
-                        {post.excerpt.substring(0, 100)}...
+                        {post.excerpt?.substring(0, 100) || "No excerpt"}...
                       </Typography>
-                      {post.featured && (
+                      {(post as any).featured && (
                         <Chip
                           label="Featured"
                           size="small"
@@ -592,16 +670,16 @@ const BlogManagement: React.FC<BlogManagementProps> = ({
                   <TableCell>
                     <Box display="flex" alignItems="center" gap={1}>
                       <Avatar sx={{ width: 32, height: 32 }}>
-                        {post.author.name.charAt(0)}
+                        {post.author?.name?.charAt(0) || "?"}
                       </Avatar>
                       <Typography variant="body2">
-                        {post.author.name}
+                        {post.author?.name || "Unknown"}
                       </Typography>
                     </Box>
                   </TableCell>
                   <TableCell>
                     <Chip
-                      label={post.category}
+                      label={post.category || "Uncategorized"}
                       size="small"
                       variant="outlined"
                     />
@@ -613,10 +691,11 @@ const BlogManagement: React.FC<BlogManagementProps> = ({
                       size="small"
                     />
                   </TableCell>
-                  <TableCell>{post.views}</TableCell>
+                  <TableCell>{post.views || 0}</TableCell>
                   <TableCell>
-                    {post.createdAt?.toDate?.()?.toLocaleDateString() ||
-                      "Unknown"}
+                    {post.createdAt
+                      ? new Date(post.createdAt).toLocaleDateString()
+                      : "Unknown"}
                   </TableCell>
                   <TableCell>
                     <Box display="flex" gap={0.5}>
@@ -725,6 +804,7 @@ const BlogManagement: React.FC<BlogManagementProps> = ({
                     <MenuItem value="draft">Draft</MenuItem>
                     <MenuItem value="review">Under Review</MenuItem>
                     <MenuItem value="published">Published</MenuItem>
+                    <MenuItem value="archived">Archived</MenuItem>
                   </Select>
                 </FormControl>
               </Grid>
@@ -771,20 +851,84 @@ const BlogManagement: React.FC<BlogManagementProps> = ({
                 />
               </Grid>
               <Grid item xs={12}>
-                <TextField
-                  fullWidth
-                  label="Featured Image URL"
-                  value={formData.featuredImage || ""}
-                  onChange={(e) =>
-                    setFormData({ ...formData, featuredImage: e.target.value })
-                  }
-                />
+                <Box>
+                  <Typography variant="subtitle2" gutterBottom>
+                    Featured Image
+                  </Typography>
+                  <Box
+                    sx={{
+                      display: "flex",
+                      gap: 1,
+                      alignItems: "center",
+                      mb: 1,
+                    }}
+                  >
+                    <Button
+                      variant="outlined"
+                      startIcon={<ImageIcon />}
+                      onClick={() => setMediaPickerOpen(true)}
+                    >
+                      Select Image
+                    </Button>
+                    <Button
+                      variant="outlined"
+                      component="label"
+                      startIcon={<PublishIcon />}
+                    >
+                      Upload File
+                      <input
+                        type="file"
+                        accept="image/*"
+                        hidden
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            setFormData({
+                              ...formData,
+                              _featuredImageFile: file,
+                              featuredImage: URL.createObjectURL(file),
+                            });
+                          }
+                        }}
+                      />
+                    </Button>
+                  </Box>
+                  {formData.featuredImage && (
+                    <Box sx={{ mt: 1 }}>
+                      <img
+                        src={formData.featuredImage}
+                        alt="Featured"
+                        style={{
+                          maxWidth: "200px",
+                          maxHeight: "120px",
+                          objectFit: "cover",
+                          borderRadius: "4px",
+                        }}
+                      />
+                      <IconButton
+                        size="small"
+                        onClick={() =>
+                          setFormData({
+                            ...formData,
+                            featuredImage: "",
+                            _featuredImageFile: undefined,
+                          })
+                        }
+                        sx={{ ml: 1 }}
+                      >
+                        <DeleteIcon />
+                      </IconButton>
+                    </Box>
+                  )}
+                </Box>
               </Grid>
             </Grid>
           </Box>
         </DialogContent>
         <DialogActions>
-          <Button onClick={handleCloseDialog} disabled={isSubmitting}>Cancel</Button>
+          <Button onClick={handleCloseDialog} disabled={isSubmitting}>
+            Cancel
+          </Button>
           <Button
             onClick={editingPost ? handleUpdatePost : handleCreatePost}
             variant="contained"
@@ -801,8 +945,10 @@ const BlogManagement: React.FC<BlogManagementProps> = ({
                 <CircularProgress size={20} color="inherit" sx={{ mr: 1 }} />
                 {editingPost ? "Updating..." : "Creating..."}
               </>
+            ) : editingPost ? (
+              "Update"
             ) : (
-              editingPost ? "Update" : "Create"
+              "Create"
             )}
           </Button>
         </DialogActions>
@@ -828,28 +974,64 @@ const BlogManagement: React.FC<BlogManagementProps> = ({
         </DialogActions>
       </Dialog>
 
+      {/* Media Picker Dialog */}
+      <MediaPicker
+        open={mediaPickerOpen}
+        onClose={() => setMediaPickerOpen(false)}
+        title="Select Featured Image"
+        allowMultiple={false}
+        allowedTypes={["image"]}
+        category="blog"
+        onSelect={(assets: MediaAsset[]) => {
+          if (assets.length > 0) {
+            setFormData({
+              ...formData,
+              featuredImage: assets[0].url,
+              _featuredImageFile: undefined, // Clear any uploaded file
+            });
+          }
+          setMediaPickerOpen(false);
+        }}
+        onCancel={() => setMediaPickerOpen(false)}
+      />
+
+      {/* Snackbar */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={4000}
+        onClose={() => setSnackbar({ ...snackbar, open: false })}
+        anchorOrigin={{ vertical: "top", horizontal: "right" }}
+      >
+        <Alert
+          severity={snackbar.severity}
+          onClose={() => setSnackbar({ ...snackbar, open: false })}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
+
       {/* React Hot Toast */}
       <Toaster
         position="top-right"
         toastOptions={{
           duration: 4000,
           style: {
-            background: '#fff',
-            color: '#333',
-            border: '1px solid #ddd',
-            borderRadius: '8px',
-            fontSize: '14px',
+            background: "#fff",
+            color: "#333",
+            border: "1px solid #ddd",
+            borderRadius: "8px",
+            fontSize: "14px",
           },
           success: {
             iconTheme: {
-              primary: '#10B981',
-              secondary: '#fff',
+              primary: "#10B981",
+              secondary: "#fff",
             },
           },
           error: {
             iconTheme: {
-              primary: '#EF4444',
-              secondary: '#fff',
+              primary: "#EF4444",
+              secondary: "#fff",
             },
           },
         }}

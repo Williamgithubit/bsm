@@ -31,11 +31,13 @@ import {
 import {
   Athlete,
   AthleteFormData,
+  AthleteContact,
   UserRole,
   LIBERIA_COUNTIES,
   SPORTS,
   FOOTBALL_POSITIONS,
 } from "@/types/athlete";
+import toast from "react-hot-toast";
 
 interface AthleteFormProps {
   athlete: Athlete | null;
@@ -109,6 +111,33 @@ export default function AthleteForm({
 
   const [errors, setErrors] = useState<Record<string, string>>({});
 
+  // Helper function to calculate age from date of birth
+  const calculateAge = (dateOfBirth: string): number => {
+    if (!dateOfBirth) return 0;
+    const birthDate = new Date(dateOfBirth);
+    const today = new Date();
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const monthDiff = today.getMonth() - birthDate.getMonth();
+    
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+      age--;
+    }
+    
+    return age;
+  };
+
+  // Helper function to validate age and date of birth consistency
+  const validateAgeAndDateOfBirth = (age: string, dateOfBirth: string): boolean => {
+    if (!age || !dateOfBirth) return true; // Skip validation if either is empty
+    
+    const enteredAge = parseInt(age);
+    const calculatedAge = calculateAge(dateOfBirth);
+    
+    // Allow 1 year difference to account for birthdays
+    const ageDifference = Math.abs(enteredAge - calculatedAge);
+    return ageDifference <= 1;
+  };
+  //
   useEffect(() => {
     if (athlete && mode === "edit") {
       setFormData({
@@ -173,8 +202,49 @@ export default function AthleteForm({
   }, [athlete, mode, open]);
 
   const handleInputChange = (field: keyof AthleteFormData, value: string) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
-    if (errors[field]) {
+    let updatedFormData = { ...formData, [field]: value };
+    
+    // Special handling for date of birth - auto-calculate age
+    if (field === 'dateOfBirth' && value) {
+      const calculatedAge = calculateAge(value);
+      if (calculatedAge > 0) {
+        updatedFormData.age = calculatedAge.toString();
+      }
+    }
+    
+    // Validation for age and date of birth consistency
+    if (field === 'age' || field === 'dateOfBirth') {
+      const ageToCheck = field === 'age' ? value : updatedFormData.age;
+      const dobToCheck = field === 'dateOfBirth' ? value : updatedFormData.dateOfBirth;
+      
+      if (ageToCheck && dobToCheck) {
+        const isValid = validateAgeAndDateOfBirth(ageToCheck, dobToCheck);
+        if (!isValid) {
+          const calculatedAge = calculateAge(dobToCheck);
+          toast.error(`Age doesn't match date of birth. Based on the date of birth, age should be ${calculatedAge}.`);
+          
+          // Set error state
+          setErrors((prev) => ({
+            ...prev,
+            age: `Should be ${calculatedAge} based on date of birth`,
+            dateOfBirth: `Age ${ageToCheck} doesn't match this date`
+          }));
+        } else {
+          // Clear errors if validation passes
+          setErrors((prev) => {
+            const newErrors = { ...prev };
+            delete newErrors.age;
+            delete newErrors.dateOfBirth;
+            return newErrors;
+          });
+        }
+      }
+    }
+    
+    setFormData(updatedFormData);
+    
+    // Clear field-specific error if it exists
+    if (errors[field] && field !== 'age' && field !== 'dateOfBirth') {
       setErrors((prev) => ({ ...prev, [field]: "" }));
     }
   };
@@ -199,6 +269,17 @@ export default function AthleteForm({
       newErrors.age = "Age must be a valid number between 0 and 100";
     }
 
+    // Validate age and date of birth consistency
+    if (formData.age && formData.dateOfBirth) {
+      const isValid = validateAgeAndDateOfBirth(formData.age, formData.dateOfBirth);
+      if (!isValid) {
+        const calculatedAge = calculateAge(formData.dateOfBirth);
+        newErrors.age = `Should be ${calculatedAge} based on date of birth`;
+        newErrors.dateOfBirth = `Age ${formData.age} doesn't match this date`;
+        toast.error("Please correct the age and date of birth mismatch before submitting.");
+      }
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -206,41 +287,90 @@ export default function AthleteForm({
   const handleSubmit = () => {
     if (!validateForm()) return;
 
+    // Build athlete data object, omitting undefined fields for Firebase compatibility
     const athleteData: Partial<Athlete> = {
       name: formData.name.trim(),
-      firstName: formData.firstName.trim() || undefined,
-      lastName: formData.lastName.trim() || undefined,
-      age: formData.age ? parseInt(formData.age) : undefined,
-      dateOfBirth: formData.dateOfBirth || undefined,
-      position: formData.position || undefined,
-      bio: formData.bio.trim() || undefined,
-      location: formData.location.trim() || undefined,
-      county: formData.county || undefined,
       sport: formData.sport,
       level: formData.level as any,
       scoutingStatus: formData.scoutingStatus as any,
-      trainingProgram: formData.trainingProgram.trim() || undefined,
-      performanceNotes: formData.performanceNotes.trim() || undefined,
-      height: formData.height ? parseInt(formData.height) : undefined,
-      weight: formData.weight ? parseInt(formData.weight) : undefined,
-      preferredFoot: (formData.preferredFoot as any) || undefined,
-      nationality: formData.nationality.trim() || undefined,
-      previousClubs: formData.previousClubs.trim()
-        ? formData.previousClubs.split(",").map((s) => s.trim())
-        : undefined,
-      achievements: formData.achievements.trim()
-        ? formData.achievements.split(",").map((s) => s.trim())
-        : undefined,
-      contact: {
-        email: formData.email.trim() || undefined,
-        phone: formData.phone.trim() || undefined,
-      },
-      socialMedia: {
-        instagram: formData.instagram.trim() || undefined,
-        twitter: formData.twitter.trim() || undefined,
-        facebook: formData.facebook.trim() || undefined,
-      },
     };
+
+    // Only add optional fields if they have values (avoid undefined)
+    if (formData.firstName.trim()) {
+      athleteData.firstName = formData.firstName.trim();
+    }
+    if (formData.lastName.trim()) {
+      athleteData.lastName = formData.lastName.trim();
+    }
+    if (formData.age && !isNaN(parseInt(formData.age))) {
+      athleteData.age = parseInt(formData.age);
+    }
+    if (formData.dateOfBirth) {
+      athleteData.dateOfBirth = formData.dateOfBirth;
+    }
+    if (formData.position) {
+      athleteData.position = formData.position;
+    }
+    if (formData.bio.trim()) {
+      athleteData.bio = formData.bio.trim();
+    }
+    if (formData.location.trim()) {
+      athleteData.location = formData.location.trim();
+    }
+    if (formData.county) {
+      athleteData.county = formData.county;
+    }
+    if (formData.trainingProgram.trim()) {
+      athleteData.trainingProgram = formData.trainingProgram.trim();
+    }
+    if (formData.performanceNotes.trim()) {
+      athleteData.performanceNotes = formData.performanceNotes.trim();
+    }
+    if (formData.height && !isNaN(parseInt(formData.height))) {
+      athleteData.height = parseInt(formData.height);
+    }
+    if (formData.weight && !isNaN(parseInt(formData.weight))) {
+      athleteData.weight = parseInt(formData.weight);
+    }
+    if (formData.preferredFoot) {
+      athleteData.preferredFoot = formData.preferredFoot as any;
+    }
+    if (formData.nationality.trim()) {
+      athleteData.nationality = formData.nationality.trim();
+    }
+    if (formData.previousClubs.trim()) {
+      athleteData.previousClubs = formData.previousClubs.split(",").map((s) => s.trim());
+    }
+    if (formData.achievements.trim()) {
+      athleteData.achievements = formData.achievements.split(",").map((s) => s.trim());
+    }
+
+    // Handle contact info - only add if there are values
+    const contact: AthleteContact = {};
+    if (formData.email.trim()) {
+      contact.email = formData.email.trim();
+    }
+    if (formData.phone.trim()) {
+      contact.phone = formData.phone.trim();
+    }
+    if (Object.keys(contact).length > 0) {
+      athleteData.contact = contact;
+    }
+
+    // Handle social media - only add if there are values
+    const socialMedia: any = {};
+    if (formData.instagram.trim()) {
+      socialMedia.instagram = formData.instagram.trim();
+    }
+    if (formData.twitter.trim()) {
+      socialMedia.twitter = formData.twitter.trim();
+    }
+    if (formData.facebook.trim()) {
+      socialMedia.facebook = formData.facebook.trim();
+    }
+    if (Object.keys(socialMedia).length > 0) {
+      athleteData.socialMedia = socialMedia;
+    }
 
     // Attach stats if present
     const stats: any = {};
@@ -338,7 +468,8 @@ export default function AthleteForm({
                   value={formData.age}
                   onChange={(e) => handleInputChange("age", e.target.value)}
                   error={!!errors.age}
-                  helperText={errors.age}
+                  helperText={errors.age || "Will auto-calculate from date of birth"}
+                  placeholder="Enter age or select date of birth"
                 />
               </Grid>
               <Grid item xs={6}>
@@ -351,6 +482,8 @@ export default function AthleteForm({
                     handleInputChange("dateOfBirth", e.target.value)
                   }
                   InputLabelProps={{ shrink: true }}
+                  error={!!errors.dateOfBirth}
+                  helperText={errors.dateOfBirth}
                 />
               </Grid>
               <Grid item xs={12}>

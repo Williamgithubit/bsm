@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from "react";
 import {
   Box,
   Typography,
@@ -31,8 +31,8 @@ import {
   useMediaQuery,
   useTheme,
   Tooltip,
-} from '@mui/material';
-import Grid from '@/components/ui/Grid';
+} from "@mui/material";
+import Grid from "@/components/ui/Grid";
 import {
   Add as AddIcon,
   Edit as EditIcon,
@@ -44,7 +44,7 @@ import {
   LocationOn as LocationIcon,
   AttachMoney as MoneyIcon,
   Storage as StorageIcon,
-} from '@mui/icons-material';
+} from "@mui/icons-material";
 import {
   Event,
   CreateEventData,
@@ -54,48 +54,51 @@ import {
   updateEvent,
   deleteEvent,
   getEventsStats,
-} from '@/services/eventService';
-import { seedEventData } from '@/utils/seedEventData';
+  subscribeToEvents,
+} from "@/services/eventService";
 
 interface EventManagementProps {
   openDialog?: boolean;
   onCloseDialog?: () => void;
 }
 
-const EventManagement: React.FC<EventManagementProps> = ({ openDialog = false, onCloseDialog }) => {
+const EventManagement: React.FC<EventManagementProps> = ({
+  openDialog = false,
+  onCloseDialog,
+}) => {
   const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
-  const isTablet = useMediaQuery(theme.breakpoints.down('md'));
+  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
+  const isTablet = useMediaQuery(theme.breakpoints.down("md"));
   const [events, setEvents] = useState<Event[]>([]);
   const [filteredEvents, setFilteredEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [seeding, setSeeding] = useState(false);
-  
+
   // Dialog states
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState<Event | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
-  
+
   // Form states
   const [formData, setFormData] = useState<CreateEventData>({
-    title: '',
-    description: '',
+    title: "",
+    description: "",
     startDate: new Date(),
     endDate: new Date(),
-    location: '',
+    location: "",
     capacity: 50,
-    status: 'upcoming',
-    category: 'workshop',
+    status: "upcoming",
+    category: "tournament",
     price: 0,
     isPublic: true,
   });
-  
+
   // Filter states
-  const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [categoryFilter, setCategoryFilter] = useState<string>('all');
-  
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [categoryFilter, setCategoryFilter] = useState<string>("all");
+
   // Stats
   const [stats, setStats] = useState({
     total: 0,
@@ -108,9 +111,31 @@ const EventManagement: React.FC<EventManagementProps> = ({ openDialog = false, o
   });
 
   useEffect(() => {
-    loadEvents();
+    // Subscribe to realtime events
+    setLoading(true);
+    const unsub = subscribeToEvents(
+      (realtimeEvents) => {
+        setEvents(realtimeEvents);
+        // Update stats from realtime collection
+        (async () => {
+          try {
+            const s = await getEventsStats();
+            setStats(s);
+          } catch (e) {
+            // ignore
+          }
+        })();
+        setLoading(false);
+      },
+      (err) => {
+        setError("Failed to subscribe to events");
+        setLoading(false);
+      }
+    );
+
+    return () => unsub();
   }, []);
-  
+
   // Handle external dialog open request from parent component
   useEffect(() => {
     if (openDialog) {
@@ -130,16 +155,16 @@ const EventManagement: React.FC<EventManagementProps> = ({ openDialog = false, o
     try {
       setLoading(true);
       setError(null);
-      
+
       const [eventsData, statsData] = await Promise.all([
         getEvents(),
         getEventsStats(),
       ]);
-      
+
       setEvents(eventsData);
       setStats(statsData);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load events');
+      setError(err instanceof Error ? err.message : "Failed to load events");
     } finally {
       setLoading(false);
     }
@@ -150,37 +175,28 @@ const EventManagement: React.FC<EventManagementProps> = ({ openDialog = false, o
 
     // Search filter
     if (searchTerm) {
-      filtered = filtered.filter(event =>
-        event.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        event.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        event.location.toLowerCase().includes(searchTerm.toLowerCase())
+      filtered = filtered.filter(
+        (event) =>
+          event.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          event.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          event.location.toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
 
     // Status filter
-    if (statusFilter !== 'all') {
-      filtered = filtered.filter(event => event.status === statusFilter);
+    if (statusFilter !== "all") {
+      filtered = filtered.filter((event) => event.status === statusFilter);
     }
 
     // Category filter
-    if (categoryFilter !== 'all') {
-      filtered = filtered.filter(event => event.category === categoryFilter);
+    if (categoryFilter !== "all") {
+      filtered = filtered.filter((event) => event.category === categoryFilter);
     }
 
     setFilteredEvents(filtered);
   };
 
-  const handleSeedData = async () => {
-    try {
-      setSeeding(true);
-      await seedEventData();
-      await loadEvents();
-    } catch (err) {
-      setError('Failed to seed sample data');
-    } finally {
-      setSeeding(false);
-    }
-  };
+  // Seed/sample data has been removed for production BSM-focused events
 
   const handleOpenDialog = (event?: Event) => {
     if (event) {
@@ -200,14 +216,14 @@ const EventManagement: React.FC<EventManagementProps> = ({ openDialog = false, o
     } else {
       setEditingEvent(null);
       setFormData({
-        title: '',
-        description: '',
+        title: "",
+        description: "",
         startDate: new Date(),
         endDate: new Date(),
-        location: '',
+        location: "",
         capacity: 50,
-        status: 'upcoming',
-        category: 'workshop',
+        status: "upcoming",
+        category: "tournament",
         price: 0,
         isPublic: true,
       });
@@ -227,11 +243,11 @@ const EventManagement: React.FC<EventManagementProps> = ({ openDialog = false, o
       } else {
         await createEvent(formData);
       }
-      
+
       handleCloseDialog();
       await loadEvents();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save event');
+      setError(err instanceof Error ? err.message : "Failed to save event");
     }
   };
 
@@ -241,50 +257,68 @@ const EventManagement: React.FC<EventManagementProps> = ({ openDialog = false, o
       await deleteEvent(id);
       await loadEvents();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete event');
+      setError(err instanceof Error ? err.message : "Failed to delete event");
     } finally {
       setDeleting(null);
     }
   };
 
-  const getStatusColor = (status: Event['status']) => {
+  const getStatusColor = (status: Event["status"]) => {
     switch (status) {
-      case 'upcoming': return 'info';
-      case 'ongoing': return 'success';
-      case 'completed': return 'default';
-      case 'cancelled': return 'error';
-      default: return 'default';
+      case "upcoming":
+        return "info";
+      case "ongoing":
+        return "success";
+      case "completed":
+        return "default";
+      case "cancelled":
+        return "error";
+      default:
+        return "default";
     }
   };
 
-  const getCategoryColor = (category: Event['category']) => {
+  const getCategoryColor = (category: Event["category"]) => {
     switch (category) {
-      case 'workshop': return 'primary';
-      case 'seminar': return 'secondary';
-      case 'conference': return 'success';
-      case 'training': return 'warning';
-      case 'networking': return 'info';
-      default: return 'default';
+      case "tournament":
+        return "primary";
+      case "training_camp":
+        return "warning";
+      case "community_outreach":
+        return "info";
+      case "trial":
+        return "secondary";
+      case "match":
+        return "success";
+      case "clinic":
+        return "default";
+      default:
+        return "default";
     }
   };
 
   const formatDate = (date: Date) => {
-    return new Date(date).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
+    return new Date(date).toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
     });
   };
 
   const formatCurrency = (amount: number) => {
-    return amount === 0 ? 'Free' : `$${amount.toFixed(2)}`;
+    return amount === 0 ? "Free" : `$${amount.toFixed(2)}`;
   };
 
   if (loading) {
     return (
-      <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
+      <Box
+        display="flex"
+        justifyContent="center"
+        alignItems="center"
+        minHeight="400px"
+      >
         <Box textAlign="center">
           <CircularProgress size={60} />
           <Typography variant="h6" sx={{ mt: 2 }}>
@@ -298,33 +332,33 @@ const EventManagement: React.FC<EventManagementProps> = ({ openDialog = false, o
   return (
     <Box>
       {/* Header */}
-      <Box 
+      <Box
         sx={{
-          display: 'flex', 
-          flexDirection: { xs: 'column', sm: 'row' },
-          justifyContent: 'space-between', 
-          alignItems: { xs: 'flex-start', sm: 'center' },
+          display: "flex",
+          flexDirection: { xs: "column", sm: "row" },
+          justifyContent: "space-between",
+          alignItems: { xs: "flex-start", sm: "center" },
           gap: { xs: 2, sm: 0 },
-          mb: 3
+          mb: 3,
         }}
       >
-        <Typography 
-          variant="h5" 
-          component="h2" 
-          sx={{ 
-            color: '#000054', 
-            fontWeight: 'bold',
-            fontSize: { xs: '1.25rem', sm: '1.5rem' }
+        <Typography
+          variant="h5"
+          component="h2"
+          sx={{
+            color: "#000054",
+            fontWeight: "bold",
+            fontSize: { xs: "1.25rem", sm: "1.5rem" },
           }}
         >
           Event Management
         </Typography>
-        <Box 
+        <Box
           sx={{
-            display: 'flex', 
-            flexDirection: { xs: 'column', sm: 'row' },
+            display: "flex",
+            flexDirection: { xs: "column", sm: "row" },
             gap: { xs: 1, sm: 2 },
-            width: { xs: '100%', sm: 'auto' }
+            width: { xs: "100%", sm: "auto" },
           }}
         >
           <Button
@@ -335,32 +369,17 @@ const EventManagement: React.FC<EventManagementProps> = ({ openDialog = false, o
             fullWidth={isMobile}
             size={isMobile ? "small" : "medium"}
             sx={{
-              borderColor: '#000054',
-              color: '#000054',
-              '&:hover': {
-                borderColor: '#1a1a6e',
-                backgroundColor: 'rgba(0, 0, 84, 0.04)',
+              borderColor: "#000054",
+              color: "#000054",
+              "&:hover": {
+                borderColor: "#1a1a6e",
+                backgroundColor: "rgba(0, 0, 84, 0.04)",
               },
             }}
           >
             {isMobile ? "" : "Refresh"}
           </Button>
-          <Button
-            variant="contained"
-            startIcon={<StorageIcon />}
-            onClick={handleSeedData}
-            disabled={seeding}
-            fullWidth={isMobile}
-            size={isMobile ? "small" : "medium"}
-            sx={{
-              backgroundColor: '#000054',
-              '&:hover': {
-                backgroundColor: '#1a1a6e',
-              },
-            }}
-          >
-            {seeding ? 'Seeding...' : (isMobile ? 'Seed Data' : 'Seed Sample Data')}
-          </Button>
+          {/* Removed seed/sample data button (BSM events are production data only) */}
           <Button
             variant="contained"
             startIcon={<AddIcon />}
@@ -369,13 +388,13 @@ const EventManagement: React.FC<EventManagementProps> = ({ openDialog = false, o
             fullWidth={isMobile}
             size={isMobile ? "small" : "medium"}
             sx={{
-              backgroundColor: '#E32845',
-              '&:hover': {
-                backgroundColor: '#c41e3a',
+              backgroundColor: "#E32845",
+              "&:hover": {
+                backgroundColor: "#c41e3a",
               },
             }}
           >
-            {isMobile ? 'Add' : 'Add Event'}
+            {isMobile ? "Add" : "Add Event"}
           </Button>
         </Box>
       </Box>
@@ -391,9 +410,17 @@ const EventManagement: React.FC<EventManagementProps> = ({ openDialog = false, o
         <Grid item xs={12} sm={6} md={3}>
           <Card>
             <CardContent>
-              <Box display="flex" alignItems="center" justifyContent="space-between">
+              <Box
+                display="flex"
+                alignItems="center"
+                justifyContent="space-between"
+              >
                 <Box>
-                  <Typography color="textSecondary" gutterBottom variant="body2">
+                  <Typography
+                    color="textSecondary"
+                    gutterBottom
+                    variant="body2"
+                  >
                     Total Events
                   </Typography>
                   <Typography variant="h4">{stats.total}</Typography>
@@ -406,9 +433,17 @@ const EventManagement: React.FC<EventManagementProps> = ({ openDialog = false, o
         <Grid item xs={12} sm={6} md={3}>
           <Card>
             <CardContent>
-              <Box display="flex" alignItems="center" justifyContent="space-between">
+              <Box
+                display="flex"
+                alignItems="center"
+                justifyContent="space-between"
+              >
                 <Box>
-                  <Typography color="textSecondary" gutterBottom variant="body2">
+                  <Typography
+                    color="textSecondary"
+                    gutterBottom
+                    variant="body2"
+                  >
                     Upcoming Events
                   </Typography>
                   <Typography variant="h4">{stats.upcoming}</Typography>
@@ -421,12 +456,22 @@ const EventManagement: React.FC<EventManagementProps> = ({ openDialog = false, o
         <Grid item xs={12} sm={6} md={3}>
           <Card>
             <CardContent>
-              <Box display="flex" alignItems="center" justifyContent="space-between">
+              <Box
+                display="flex"
+                alignItems="center"
+                justifyContent="space-between"
+              >
                 <Box>
-                  <Typography color="textSecondary" gutterBottom variant="body2">
+                  <Typography
+                    color="textSecondary"
+                    gutterBottom
+                    variant="body2"
+                  >
                     Total Registrations
                   </Typography>
-                  <Typography variant="h4">{stats.totalRegistrations}</Typography>
+                  <Typography variant="h4">
+                    {stats.totalRegistrations}
+                  </Typography>
                 </Box>
                 <PeopleIcon color="success" sx={{ fontSize: 40 }} />
               </Box>
@@ -436,9 +481,17 @@ const EventManagement: React.FC<EventManagementProps> = ({ openDialog = false, o
         <Grid item xs={12} sm={6} md={3}>
           <Card>
             <CardContent>
-              <Box display="flex" alignItems="center" justifyContent="space-between">
+              <Box
+                display="flex"
+                alignItems="center"
+                justifyContent="space-between"
+              >
                 <Box>
-                  <Typography color="textSecondary" gutterBottom variant="body2">
+                  <Typography
+                    color="textSecondary"
+                    gutterBottom
+                    variant="body2"
+                  >
                     Total Capacity
                   </Typography>
                   <Typography variant="h4">{stats.totalCapacity}</Typography>
@@ -463,10 +516,12 @@ const EventManagement: React.FC<EventManagementProps> = ({ openDialog = false, o
               InputProps={{
                 startAdornment: (
                   <InputAdornment position="start">
-                    <SearchIcon sx={{ fontSize: { xs: '1.2rem', sm: '1.5rem' } }} />
+                    <SearchIcon
+                      sx={{ fontSize: { xs: "1.2rem", sm: "1.5rem" } }}
+                    />
                   </InputAdornment>
                 ),
-                sx: { fontSize: { xs: '0.875rem', sm: '1rem' } }
+                sx: { fontSize: { xs: "0.875rem", sm: "1rem" } },
               }}
             />
           </Grid>
@@ -497,11 +552,14 @@ const EventManagement: React.FC<EventManagementProps> = ({ openDialog = false, o
                 size={isMobile ? "small" : "medium"}
               >
                 <MenuItem value="all">All Categories</MenuItem>
-                <MenuItem value="workshop">Workshop</MenuItem>
-                <MenuItem value="seminar">Seminar</MenuItem>
-                <MenuItem value="conference">Conference</MenuItem>
-                <MenuItem value="training">Training</MenuItem>
-                <MenuItem value="networking">Networking</MenuItem>
+                <MenuItem value="tournament">Tournament</MenuItem>
+                <MenuItem value="training_camp">Training Camp</MenuItem>
+                <MenuItem value="community_outreach">
+                  Community Outreach
+                </MenuItem>
+                <MenuItem value="trial">Trial</MenuItem>
+                <MenuItem value="match">Match</MenuItem>
+                <MenuItem value="clinic">Clinic</MenuItem>
                 <MenuItem value="other">Other</MenuItem>
               </Select>
             </FormControl>
@@ -511,18 +569,39 @@ const EventManagement: React.FC<EventManagementProps> = ({ openDialog = false, o
 
       {/* Events Table */}
       <Paper>
-        <TableContainer sx={{ overflowX: 'auto' }}>
+        <TableContainer sx={{ overflowX: "auto" }}>
           <Table size={isMobile ? "small" : "medium"}>
             <TableHead>
               <TableRow>
                 <TableCell>Event</TableCell>
-                <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>Date & Time</TableCell>
-                <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>Location</TableCell>
+                <TableCell sx={{ display: { xs: "none", sm: "table-cell" } }}>
+                  Date & Time
+                </TableCell>
+                <TableCell sx={{ display: { xs: "none", md: "table-cell" } }}>
+                  Location
+                </TableCell>
                 <TableCell>Status</TableCell>
-                <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>Category</TableCell>
-                <TableCell align="right" sx={{ display: { xs: 'none', sm: 'table-cell' } }}>Capacity</TableCell>
-                <TableCell align="right" sx={{ display: { xs: 'none', lg: 'table-cell' } }}>Registrations</TableCell>
-                <TableCell align="right" sx={{ display: { xs: 'none', sm: 'table-cell' } }}>Price</TableCell>
+                <TableCell sx={{ display: { xs: "none", md: "table-cell" } }}>
+                  Category
+                </TableCell>
+                <TableCell
+                  align="right"
+                  sx={{ display: { xs: "none", sm: "table-cell" } }}
+                >
+                  Capacity
+                </TableCell>
+                <TableCell
+                  align="right"
+                  sx={{ display: { xs: "none", lg: "table-cell" } }}
+                >
+                  Registrations
+                </TableCell>
+                <TableCell
+                  align="right"
+                  sx={{ display: { xs: "none", sm: "table-cell" } }}
+                >
+                  Price
+                </TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -531,52 +610,75 @@ const EventManagement: React.FC<EventManagementProps> = ({ openDialog = false, o
                   <TableRow key={event.id}>
                     <TableCell>
                       <Box>
-                        <Typography 
-                          variant="subtitle2" 
+                        <Typography
+                          variant="subtitle2"
                           fontWeight="bold"
-                          sx={{ fontSize: { xs: '0.8rem', sm: '0.875rem' } }}
+                          sx={{ fontSize: { xs: "0.8rem", sm: "0.875rem" } }}
                         >
                           {event.title}
                         </Typography>
-                        <Typography 
-                          variant="body2" 
-                          color="textSecondary" 
+                        <Typography
+                          variant="body2"
+                          color="textSecondary"
                           noWrap
-                          sx={{ 
-                            fontSize: { xs: '0.75rem', sm: '0.8rem' },
-                            maxWidth: { xs: '150px', sm: '200px', md: '300px' },
+                          sx={{
+                            fontSize: { xs: "0.75rem", sm: "0.8rem" },
+                            maxWidth: { xs: "150px", sm: "200px", md: "300px" },
                           }}
                         >
                           {event.description.length > (isMobile ? 30 : 60)
-                            ? `${event.description.substring(0, isMobile ? 30 : 60)}...` 
+                            ? `${event.description.substring(
+                                0,
+                                isMobile ? 30 : 60
+                              )}...`
                             : event.description}
                         </Typography>
                       </Box>
                     </TableCell>
-                    <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>
+                    <TableCell
+                      sx={{ display: { xs: "none", sm: "table-cell" } }}
+                    >
                       <Box>
-                        <Typography variant="body2" sx={{ fontSize: { xs: '0.75rem', sm: '0.8rem' } }}>
+                        <Typography
+                          variant="body2"
+                          sx={{ fontSize: { xs: "0.75rem", sm: "0.8rem" } }}
+                        >
                           {formatDate(event.startDate)}
                         </Typography>
-                        <Typography variant="caption" color="textSecondary" sx={{ fontSize: { xs: '0.7rem', sm: '0.75rem' } }}>
+                        <Typography
+                          variant="caption"
+                          color="textSecondary"
+                          sx={{ fontSize: { xs: "0.7rem", sm: "0.75rem" } }}
+                        >
                           to {formatDate(event.endDate)}
                         </Typography>
                       </Box>
                     </TableCell>
-                    <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>{event.location}</TableCell>
+                    <TableCell
+                      sx={{ display: { xs: "none", md: "table-cell" } }}
+                    >
+                      {event.location}
+                    </TableCell>
                     <TableCell>
                       <Chip
-                        label={isMobile ? event.status.charAt(0).toUpperCase() : event.status.charAt(0).toUpperCase() + event.status.slice(1)}
+                        label={
+                          isMobile
+                            ? event.status.charAt(0).toUpperCase()
+                            : event.status.charAt(0).toUpperCase() +
+                              event.status.slice(1)
+                        }
                         size="small"
                         sx={{
                           backgroundColor: getStatusColor(event.status),
-                          color: '#fff',
-                          fontSize: { xs: '0.7rem', sm: '0.75rem' },
-                          height: { xs: '20px', sm: '24px' },
+                          color: "#fff",
+                          fontSize: { xs: "0.7rem", sm: "0.75rem" },
+                          height: { xs: "20px", sm: "24px" },
                         }}
                       />
                     </TableCell>
-                    <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>
+                    <TableCell
+                      sx={{ display: { xs: "none", md: "table-cell" } }}
+                    >
                       <Chip
                         label={event.category}
                         color={getCategoryColor(event.category)}
@@ -584,37 +686,62 @@ const EventManagement: React.FC<EventManagementProps> = ({ openDialog = false, o
                         size="small"
                       />
                     </TableCell>
-                    <TableCell align="right" sx={{ display: { xs: 'none', sm: 'table-cell' } }}>{event.capacity}</TableCell>
-                    <TableCell align="right" sx={{ display: { xs: 'none', lg: 'table-cell' } }}>{event.registrations || 0}</TableCell>
-                    <TableCell align="right" sx={{ display: { xs: 'none', sm: 'table-cell' } }}>
+                    <TableCell
+                      align="right"
+                      sx={{ display: { xs: "none", sm: "table-cell" } }}
+                    >
+                      {event.capacity}
+                    </TableCell>
+                    <TableCell
+                      align="right"
+                      sx={{ display: { xs: "none", lg: "table-cell" } }}
+                    >
+                      {event.registrations || 0}
+                    </TableCell>
+                    <TableCell
+                      align="right"
+                      sx={{ display: { xs: "none", sm: "table-cell" } }}
+                    >
                       <Typography variant="body2" fontWeight="bold">
                         {formatCurrency(event.price)}
                       </Typography>
                     </TableCell>
                     <TableCell align="center">
-                      <Box sx={{ display: 'flex', justifyContent: 'center', gap: { xs: 0, sm: 1 } }}>
+                      <Box
+                        sx={{
+                          display: "flex",
+                          justifyContent: "center",
+                          gap: { xs: 0, sm: 1 },
+                        }}
+                      >
                         <IconButton
                           size={isMobile ? "small" : "medium"}
                           onClick={() => handleOpenDialog(event)}
-                          sx={{ 
-                            color: '#000054',
-                            padding: { xs: 0.5, sm: 1 }
+                          sx={{
+                            color: "#000054",
+                            padding: { xs: 0.5, sm: 1 },
                           }}
                         >
-                          <EditIcon sx={{ fontSize: { xs: '1rem', sm: '1.25rem' } }} />
+                          <EditIcon
+                            sx={{ fontSize: { xs: "1rem", sm: "1.25rem" } }}
+                          />
                         </IconButton>
                         <IconButton
                           size={isMobile ? "small" : "medium"}
                           onClick={() => handleDelete(event.id)}
-                          sx={{ 
-                            color: '#E32845',
-                            padding: { xs: 0.5, sm: 1 }
+                          sx={{
+                            color: "#E32845",
+                            padding: { xs: 0.5, sm: 1 },
                           }}
                           disabled={deleting === event.id}
                         >
-                          {deleting === event.id ? 
-                            <CircularProgress size={isMobile ? 16 : 20} /> : 
-                            <DeleteIcon sx={{ fontSize: { xs: '1rem', sm: '1.25rem' } }} />}
+                          {deleting === event.id ? (
+                            <CircularProgress size={isMobile ? 16 : 20} />
+                          ) : (
+                            <DeleteIcon
+                              sx={{ fontSize: { xs: "1rem", sm: "1.25rem" } }}
+                            />
+                          )}
                         </IconButton>
                       </Box>
                     </TableCell>
@@ -624,9 +751,9 @@ const EventManagement: React.FC<EventManagementProps> = ({ openDialog = false, o
                 <TableRow>
                   <TableCell colSpan={9} align="center">
                     <Typography color="textSecondary" sx={{ py: 4 }}>
-                      {events.length === 0 
-                        ? 'No events found. Click "Add Event" to create your first event.' 
-                        : 'No events match your current filters.'}
+                      {events.length === 0
+                        ? 'No events found. Click "Add Event" to create your first event.'
+                        : "No events match your current filters."}
                     </Typography>
                   </TableCell>
                 </TableRow>
@@ -637,21 +764,21 @@ const EventManagement: React.FC<EventManagementProps> = ({ openDialog = false, o
       </Paper>
 
       {/* Add/Edit Event Dialog */}
-      <Dialog 
-        open={dialogOpen} 
-        onClose={handleCloseDialog} 
-        maxWidth="md" 
+      <Dialog
+        open={dialogOpen}
+        onClose={handleCloseDialog}
+        maxWidth="md"
         fullWidth
         PaperProps={{
           sx: {
-            width: { xs: '95%', sm: '80%', md: '70%' },
-            maxWidth: { xs: '95%', sm: '80%', md: '800px' },
-            p: { xs: 1, sm: 2 }
-          }
+            width: { xs: "95%", sm: "80%", md: "70%" },
+            maxWidth: { xs: "95%", sm: "80%", md: "800px" },
+            p: { xs: 1, sm: 2 },
+          },
         }}
       >
-        <DialogTitle sx={{ fontSize: { xs: '1.1rem', sm: '1.25rem' } }}>
-          {editingEvent ? 'Edit Event' : 'Create New Event'}
+        <DialogTitle sx={{ fontSize: { xs: "1.1rem", sm: "1.25rem" } }}>
+          {editingEvent ? "Edit Event" : "Create New Event"}
         </DialogTitle>
         <DialogContent>
           <Grid container spacing={{ xs: 1, sm: 2 }} sx={{ mt: 1 }}>
@@ -660,14 +787,16 @@ const EventManagement: React.FC<EventManagementProps> = ({ openDialog = false, o
                 fullWidth
                 label="Title"
                 value={formData.title}
-                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, title: e.target.value })
+                }
                 required
                 size={isMobile ? "small" : "medium"}
                 InputProps={{
-                  sx: { fontSize: { xs: '0.875rem', sm: '1rem' } }
+                  sx: { fontSize: { xs: "0.875rem", sm: "1rem" } },
                 }}
                 InputLabelProps={{
-                  sx: { fontSize: { xs: '0.875rem', sm: '1rem' } }
+                  sx: { fontSize: { xs: "0.875rem", sm: "1rem" } },
                 }}
               />
             </Grid>
@@ -676,16 +805,18 @@ const EventManagement: React.FC<EventManagementProps> = ({ openDialog = false, o
                 fullWidth
                 label="Description"
                 value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, description: e.target.value })
+                }
                 multiline
                 rows={isMobile ? 3 : 4}
                 required
                 size={isMobile ? "small" : "medium"}
                 InputProps={{
-                  sx: { fontSize: { xs: '0.875rem', sm: '1rem' } }
+                  sx: { fontSize: { xs: "0.875rem", sm: "1rem" } },
                 }}
                 InputLabelProps={{
-                  sx: { fontSize: { xs: '0.875rem', sm: '1rem' } }
+                  sx: { fontSize: { xs: "0.875rem", sm: "1rem" } },
                 }}
               />
             </Grid>
@@ -695,15 +826,20 @@ const EventManagement: React.FC<EventManagementProps> = ({ openDialog = false, o
                 label="Start Date & Time"
                 type="datetime-local"
                 value={formData.startDate.toISOString().slice(0, 16)}
-                onChange={(e) => setFormData({ ...formData, startDate: new Date(e.target.value) })}
-                InputLabelProps={{ 
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    startDate: new Date(e.target.value),
+                  })
+                }
+                InputLabelProps={{
                   shrink: true,
-                  sx: { fontSize: { xs: '0.875rem', sm: '1rem' } }
+                  sx: { fontSize: { xs: "0.875rem", sm: "1rem" } },
                 }}
                 required
                 size={isMobile ? "small" : "medium"}
                 InputProps={{
-                  sx: { fontSize: { xs: '0.875rem', sm: '1rem' } }
+                  sx: { fontSize: { xs: "0.875rem", sm: "1rem" } },
                 }}
               />
             </Grid>
@@ -713,15 +849,20 @@ const EventManagement: React.FC<EventManagementProps> = ({ openDialog = false, o
                 label="End Date & Time"
                 type="datetime-local"
                 value={formData.endDate.toISOString().slice(0, 16)}
-                onChange={(e) => setFormData({ ...formData, endDate: new Date(e.target.value) })}
-                InputLabelProps={{ 
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    endDate: new Date(e.target.value),
+                  })
+                }
+                InputLabelProps={{
                   shrink: true,
-                  sx: { fontSize: { xs: '0.875rem', sm: '1rem' } }
+                  sx: { fontSize: { xs: "0.875rem", sm: "1rem" } },
                 }}
                 required
                 size={isMobile ? "small" : "medium"}
                 InputProps={{
-                  sx: { fontSize: { xs: '0.875rem', sm: '1rem' } }
+                  sx: { fontSize: { xs: "0.875rem", sm: "1rem" } },
                 }}
               />
             </Grid>
@@ -730,14 +871,16 @@ const EventManagement: React.FC<EventManagementProps> = ({ openDialog = false, o
                 fullWidth
                 label="Location"
                 value={formData.location}
-                onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, location: e.target.value })
+                }
                 required
                 size={isMobile ? "small" : "medium"}
                 InputProps={{
-                  sx: { fontSize: { xs: '0.875rem', sm: '1rem' } }
+                  sx: { fontSize: { xs: "0.875rem", sm: "1rem" } },
                 }}
                 InputLabelProps={{
-                  sx: { fontSize: { xs: '0.875rem', sm: '1rem' } }
+                  sx: { fontSize: { xs: "0.875rem", sm: "1rem" } },
                 }}
               />
             </Grid>
@@ -747,7 +890,12 @@ const EventManagement: React.FC<EventManagementProps> = ({ openDialog = false, o
                 label="Capacity"
                 type="number"
                 value={formData.capacity}
-                onChange={(e) => setFormData({ ...formData, capacity: parseInt(e.target.value) || 0 })}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    capacity: parseInt(e.target.value) || 0,
+                  })
+                }
                 inputProps={{ min: 1 }}
                 required
               />
@@ -758,7 +906,12 @@ const EventManagement: React.FC<EventManagementProps> = ({ openDialog = false, o
                 <Select
                   value={formData.status}
                   label="Status"
-                  onChange={(e) => setFormData({ ...formData, status: e.target.value as Event['status'] })}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      status: e.target.value as Event["status"],
+                    })
+                  }
                 >
                   <MenuItem value="upcoming">Upcoming</MenuItem>
                   <MenuItem value="ongoing">Ongoing</MenuItem>
@@ -773,13 +926,21 @@ const EventManagement: React.FC<EventManagementProps> = ({ openDialog = false, o
                 <Select
                   value={formData.category}
                   label="Category"
-                  onChange={(e) => setFormData({ ...formData, category: e.target.value as Event['category'] })}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      category: e.target.value as Event["category"],
+                    })
+                  }
                 >
-                  <MenuItem value="workshop">Workshop</MenuItem>
-                  <MenuItem value="seminar">Seminar</MenuItem>
-                  <MenuItem value="conference">Conference</MenuItem>
-                  <MenuItem value="training">Training</MenuItem>
-                  <MenuItem value="networking">Networking</MenuItem>
+                  <MenuItem value="tournament">Tournament</MenuItem>
+                  <MenuItem value="training_camp">Training Camp</MenuItem>
+                  <MenuItem value="community_outreach">
+                    Community Outreach
+                  </MenuItem>
+                  <MenuItem value="trial">Trial</MenuItem>
+                  <MenuItem value="match">Match</MenuItem>
+                  <MenuItem value="clinic">Clinic</MenuItem>
                   <MenuItem value="other">Other</MenuItem>
                 </Select>
               </FormControl>
@@ -790,10 +951,17 @@ const EventManagement: React.FC<EventManagementProps> = ({ openDialog = false, o
                 label="Price"
                 type="number"
                 value={formData.price}
-                onChange={(e) => setFormData({ ...formData, price: parseFloat(e.target.value) || 0 })}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    price: parseFloat(e.target.value) || 0,
+                  })
+                }
                 inputProps={{ min: 0, step: 0.01 }}
                 InputProps={{
-                  startAdornment: <InputAdornment position="start">$</InputAdornment>,
+                  startAdornment: (
+                    <InputAdornment position="start">$</InputAdornment>
+                  ),
                 }}
               />
             </Grid>
@@ -802,7 +970,9 @@ const EventManagement: React.FC<EventManagementProps> = ({ openDialog = false, o
                 control={
                   <Switch
                     checked={formData.isPublic}
-                    onChange={(e) => setFormData({ ...formData, isPublic: e.target.checked })}
+                    onChange={(e) =>
+                      setFormData({ ...formData, isPublic: e.target.checked })
+                    }
                   />
                 }
                 label="Public Event"
@@ -811,25 +981,33 @@ const EventManagement: React.FC<EventManagementProps> = ({ openDialog = false, o
           </Grid>
         </DialogContent>
         <DialogActions sx={{ p: { xs: 1.5, sm: 2 }, gap: { xs: 1, sm: 2 } }}>
-          <Button 
+          <Button
             onClick={handleCloseDialog}
             size={isMobile ? "small" : "medium"}
           >
             Cancel
           </Button>
-          <Button 
-            onClick={handleSubmit} 
+          <Button
+            onClick={handleSubmit}
             variant="contained"
-            disabled={!formData.title || !formData.description || !formData.location}
+            disabled={
+              !formData.title || !formData.description || !formData.location
+            }
             size={isMobile ? "small" : "medium"}
             sx={{
-              backgroundColor: '#E32845',
-              '&:hover': {
-                backgroundColor: '#c41e3a',
+              backgroundColor: "#E32845",
+              "&:hover": {
+                backgroundColor: "#c41e3a",
               },
             }}
           >
-            {editingEvent ? (isMobile ? 'Update' : 'Update Event') : (isMobile ? 'Create' : 'Create Event')}
+            {editingEvent
+              ? isMobile
+                ? "Update"
+                : "Update Event"
+              : isMobile
+              ? "Create"
+              : "Create Event"}
           </Button>
         </DialogActions>
       </Dialog>

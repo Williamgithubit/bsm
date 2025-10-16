@@ -1,12 +1,14 @@
-'use client'
-import React, { useState, useEffect } from 'react';
+"use client";
+import React, { useState, useEffect } from "react";
+import { doc, updateDoc, deleteDoc } from "firebase/firestore";
+import { collection, query, orderBy, onSnapshot } from "firebase/firestore";
+import { db } from "@/services/firebase";
 import {
   Box,
   Typography,
   Button,
   Card,
   CardContent,
-  Grid,
   TextField,
   Dialog,
   DialogTitle,
@@ -22,8 +24,10 @@ import {
   Paper,
   Divider,
   Alert,
-  Snackbar
-} from '@mui/material';
+  Snackbar,
+} from "@mui/material";
+import AthleteService from "@/services/athleteService";
+import Grid from "@/components/ui/Grid";
 import {
   Search as SearchIcon,
   MoreVert as MoreVertIcon,
@@ -33,8 +37,8 @@ import {
   Visibility as ViewIcon,
   Email as EmailIcon,
   Phone as PhoneIcon,
-  Business as BusinessIcon
-} from '@mui/icons-material';
+  Business as BusinessIcon,
+} from "@mui/icons-material";
 
 interface ContactSubmission {
   id: string;
@@ -47,6 +51,8 @@ interface ContactSubmission {
   response?: string;
   createdAt: string;
   updatedAt: string;
+  athleteId?: string;
+  athleteName?: string | null;
 }
 
 interface ContactManagementProps {
@@ -54,188 +60,353 @@ interface ContactManagementProps {
   onCloseDialog: () => void;
 }
 
-export default function ContactManagement({ openDialog, onCloseDialog }: ContactManagementProps) {
+export default function ContactManagement({
+  openDialog,
+  onCloseDialog,
+}: ContactManagementProps) {
   const [contacts, setContacts] = useState<ContactSubmission[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filterCategory, setFilterCategory] = useState('all');
-  const [filterStatus, setFilterStatus] = useState('all');
-  const [selectedContact, setSelectedContact] = useState<ContactSubmission | null>(null);
-  const [dialogMode, setDialogMode] = useState<'view' | 'reply'>('view');
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filterCategory, setFilterCategory] = useState("all");
+  const [filterStatus, setFilterStatus] = useState("all");
+  const [selectedContact, setSelectedContact] =
+    useState<ContactSubmission | null>(null);
+  const [dialogMode, setDialogMode] = useState<"view" | "reply">("view");
+  const [dialogOpenLocal, setDialogOpenLocal] = useState(false);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
-  const [selectedContactId, setSelectedContactId] = useState<string>('');
-  const [replyMessage, setReplyMessage] = useState('');
+  const [selectedContactId, setSelectedContactId] = useState<string>("");
+  const [replyMessage, setReplyMessage] = useState("");
   const [snackbar, setSnackbar] = useState({
     open: false,
-    message: '',
-    severity: 'success' as 'success' | 'error' | 'info' | 'warning'
+    message: "",
+    severity: "success" as "success" | "error" | "info" | "warning",
   });
 
-  // Mock data for demonstration
+  // Subscribe to Firestore contacts and enquiries collections
   useEffect(() => {
-    const mockContacts: ContactSubmission[] = [
-      {
-        id: '1',
-        name: 'Samuel Williams',
-        email: 'samuel@example.com',
-        subject: 'Partnership Opportunity',
-        message: 'I would like to discuss a potential partnership for youth football development in rural Liberia.',
-        category: 'partnerships',
-        status: 'new',
-        createdAt: '2024-10-10T10:00:00Z',
-        updatedAt: '2024-10-10T10:00:00Z'
-      },
-      {
-        id: '2',
-        name: 'Grace Johnson',
-        email: 'grace@example.com',
-        subject: 'Scouting Request',
-        message: 'My son is 16 and plays for his school team. We would like him to be scouted for potential opportunities.',
-        category: 'scouting',
-        status: 'responded',
-        response: 'Thank you for your interest. We have scheduled a scouting session for next week.',
-        createdAt: '2024-10-08T14:30:00Z',
-        updatedAt: '2024-10-09T09:15:00Z'
-      },
-      {
-        id: '3',
-        name: 'Moses Kpehe',
-        email: 'moses@example.com',
-        subject: 'Training Camp Inquiry',
-        message: 'When is the next training camp? I have several young players who would benefit from professional training.',
-        category: 'events',
-        status: 'new',
-        createdAt: '2024-10-12T16:45:00Z',
-        updatedAt: '2024-10-12T16:45:00Z'
-      }
-    ];
-    setContacts(mockContacts);
-    setLoading(false);
+    setLoading(true);
+    const contactsQ = query(
+      collection(db, "contacts"),
+      orderBy("createdAt", "desc")
+    );
+    const enquiriesQ = query(
+      collection(db, "enquiries"),
+      orderBy("createdAt", "desc")
+    );
+
+    const unsubContacts = onSnapshot(contactsQ, (snap) => {
+      const items: ContactSubmission[] = [];
+      snap.forEach((d) => {
+        const data: any = d.data();
+        items.push({
+          id: d.id,
+          name: data.name || data.fullName || "",
+          email: data.email || "",
+          subject: data.subject || data.title || "Contact",
+          message: data.message || "",
+          category: data.category || "general",
+          status: data.status || "new",
+          response: data.response || "",
+          createdAt: data.createdAt
+            ? data.createdAt.toDate
+              ? data.createdAt.toDate().toISOString()
+              : data.createdAt
+            : new Date().toISOString(),
+          updatedAt: data.updatedAt
+            ? data.updatedAt.toDate
+              ? data.updatedAt.toDate().toISOString()
+              : data.updatedAt
+            : new Date().toISOString(),
+        });
+      });
+      setContacts((prev) => {
+        // merge with existing enquiries if any
+        const enquiries = prev.filter((p) => p.category === "enquiry");
+        return [...items, ...enquiries];
+      });
+      setLoading(false);
+    });
+
+    const unsubEnquiries = onSnapshot(enquiriesQ, (snap) => {
+      const items: ContactSubmission[] = [];
+      snap.forEach((d) => {
+        const data: any = d.data();
+        items.push({
+          id: d.id,
+          name: data.name || "",
+          email: data.email || "",
+          // Prefer athleteName (resolved at creation) then fall back to athleteId
+          subject: `Enquiry for athlete ${
+            data.athleteName || data.athleteId || ""
+          }`,
+          message: data.message || "",
+          category: "enquiry",
+          status: data.status || "new",
+          response: data.response || "",
+          createdAt: data.createdAt
+            ? data.createdAt.toDate
+              ? data.createdAt.toDate().toISOString()
+              : data.createdAt
+            : new Date().toISOString(),
+          updatedAt: data.updatedAt
+            ? data.updatedAt.toDate
+              ? data.updatedAt.toDate().toISOString()
+              : data.updatedAt
+            : data.createdAt
+            ? data.createdAt.toDate
+              ? data.createdAt.toDate().toISOString()
+              : data.createdAt
+            : new Date().toISOString(),
+          athleteId: data.athleteId || undefined,
+          athleteName: data.athleteName || null,
+        });
+      });
+
+      // Resolve athleteName for older enquiries that only have athleteId
+      (async () => {
+        const promises = items.map(async (it) => {
+          if (it.category === "enquiry" && !it.athleteName && it.athleteId) {
+            try {
+              const athlete = await AthleteService.getAthleteById(it.athleteId);
+              if (athlete?.name) {
+                it.athleteName = athlete.name;
+                it.subject = `Enquiry for athlete ${athlete.name}`;
+              }
+            } catch (err) {
+              // ignore
+            }
+          }
+          return it;
+        });
+
+        const resolved = await Promise.all(promises);
+        setContacts((prev) => {
+          // remove previous enquiries and replace with latest
+          const nonEnquiries = prev.filter((p) => p.category !== "enquiry");
+          return [...nonEnquiries, ...resolved];
+        });
+      })();
+      setLoading(false);
+    });
+
+    return () => {
+      unsubContacts();
+      unsubEnquiries();
+    };
   }, []);
 
-  const handleMenuClick = (event: React.MouseEvent<HTMLElement>, contactId: string) => {
+  const handleMenuClick = (
+    event: React.MouseEvent<HTMLElement>,
+    contactId: string
+  ) => {
     setAnchorEl(event.currentTarget);
     setSelectedContactId(contactId);
   };
 
   const handleMenuClose = () => {
     setAnchorEl(null);
-    setSelectedContactId('');
+    setSelectedContactId("");
   };
 
   const handleViewContact = (contact: ContactSubmission) => {
-    setDialogMode('view');
+    setDialogMode("view");
     setSelectedContact(contact);
-    setReplyMessage('');
+    setReplyMessage("");
+    setDialogOpenLocal(true);
     handleMenuClose();
   };
 
   const handleReplyContact = (contact: ContactSubmission) => {
-    setDialogMode('reply');
+    setDialogMode("reply");
     setSelectedContact(contact);
-    setReplyMessage('');
+    setReplyMessage("");
+    setDialogOpenLocal(true);
     handleMenuClose();
   };
 
   const handleArchiveContact = (contactId: string) => {
-    const updatedContacts = contacts.map(c =>
-      c.id === contactId
-        ? { ...c, status: 'archived', updatedAt: new Date().toISOString() }
-        : c
-    );
-    setContacts(updatedContacts);
-    setSnackbar({
-      open: true,
-      message: 'Contact archived successfully',
-      severity: 'success'
-    });
+    // update in Firestore if exists in contacts collection, otherwise update enquiries
+    (async () => {
+      try {
+        // try contacts collection
+        await updateDoc(doc(db, "contacts", contactId), {
+          status: "archived",
+          updatedAt: new Date().toISOString(),
+        });
+        setSnackbar({
+          open: true,
+          message: "Contact archived successfully",
+          severity: "success",
+        });
+      } catch (err) {
+        try {
+          await updateDoc(doc(db, "enquiries", contactId), {
+            status: "archived",
+            updatedAt: new Date().toISOString(),
+          });
+          setSnackbar({
+            open: true,
+            message: "Enquiry archived successfully",
+            severity: "success",
+          });
+        } catch (e) {
+          console.error("Archive failed", e);
+          setSnackbar({
+            open: true,
+            message: "Failed to archive",
+            severity: "error",
+          });
+        }
+      }
+    })();
     handleMenuClose();
   };
 
   const handleDeleteContact = (contactId: string) => {
-    setContacts(contacts.filter(c => c.id !== contactId));
-    setSnackbar({
-      open: true,
-      message: 'Contact deleted successfully',
-      severity: 'success'
-    });
+    (async () => {
+      try {
+        await deleteDoc(doc(db, "contacts", contactId));
+        setSnackbar({
+          open: true,
+          message: "Contact deleted successfully",
+          severity: "success",
+        });
+      } catch (err) {
+        try {
+          await deleteDoc(doc(db, "enquiries", contactId));
+          setSnackbar({
+            open: true,
+            message: "Enquiry deleted successfully",
+            severity: "success",
+          });
+        } catch (e) {
+          console.error("Delete failed", e);
+          setSnackbar({
+            open: true,
+            message: "Failed to delete",
+            severity: "error",
+          });
+        }
+      }
+    })();
     handleMenuClose();
   };
 
   const handleSendReply = () => {
     if (selectedContact && replyMessage.trim()) {
-      const updatedContacts = contacts.map(c =>
-        c.id === selectedContact.id
-          ? {
-              ...c,
-              status: 'responded',
+      (async () => {
+        try {
+          // attempt update in contacts
+          await updateDoc(doc(db, "contacts", selectedContact.id), {
+            status: "responded",
+            response: replyMessage,
+            updatedAt: new Date().toISOString(),
+          });
+          setSnackbar({
+            open: true,
+            message: "Reply sent successfully",
+            severity: "success",
+          });
+        } catch (err) {
+          try {
+            await updateDoc(doc(db, "enquiries", selectedContact.id), {
+              status: "responded",
               response: replyMessage,
-              updatedAt: new Date().toISOString()
-            }
-          : c
-      );
-      setContacts(updatedContacts);
-      setSnackbar({
-        open: true,
-        message: 'Reply sent successfully',
-        severity: 'success'
-      });
-      onCloseDialog();
+              updatedAt: new Date().toISOString(),
+            });
+            setSnackbar({
+              open: true,
+              message: "Reply sent to enquiry",
+              severity: "success",
+            });
+          } catch (e) {
+            console.error("Reply failed", e);
+            setSnackbar({
+              open: true,
+              message: "Failed to send reply",
+              severity: "error",
+            });
+          }
+        }
+        onCloseDialog();
+      })();
     }
   };
 
-  const filteredContacts = contacts.filter(contact => {
-    const matchesSearch = contact.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         contact.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         contact.subject.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = filterCategory === 'all' || contact.category === filterCategory;
-    const matchesStatus = filterStatus === 'all' || contact.status === filterStatus;
-    
+  const filteredContacts = contacts.filter((contact) => {
+    const matchesSearch =
+      contact.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      contact.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      contact.subject.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesCategory =
+      filterCategory === "all" || contact.category === filterCategory;
+    const matchesStatus =
+      filterStatus === "all" || contact.status === filterStatus;
+
     return matchesSearch && matchesCategory && matchesStatus;
   });
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'new': return 'error';
-      case 'responded': return 'success';
-      case 'archived': return 'default';
-      default: return 'default';
+      case "new":
+        return "error";
+      case "responded":
+        return "success";
+      case "archived":
+        return "default";
+      default:
+        return "default";
     }
   };
 
   const getCategoryColor = (category: string) => {
     switch (category) {
-      case 'partnerships': return 'primary';
-      case 'scouting': return 'warning';
-      case 'events': return 'info';
-      default: return 'default';
+      case "partnerships":
+        return "primary";
+      case "scouting":
+        return "warning";
+      case "events":
+        return "info";
+      default:
+        return "default";
     }
   };
 
   const getCategoryIcon = (category: string) => {
     switch (category) {
-      case 'partnerships': return <BusinessIcon />;
-      case 'scouting': return <EmailIcon />;
-      case 'events': return <PhoneIcon />;
-      default: return <EmailIcon />;
+      case "partnerships":
+        return <BusinessIcon />;
+      case "scouting":
+        return <EmailIcon />;
+      case "events":
+        return <PhoneIcon />;
+      default:
+        return <EmailIcon />;
     }
   };
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
+    return new Date(dateString).toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
     });
   };
 
   return (
     <Box>
       {/* Header */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Typography variant="h4" sx={{ fontWeight: 'bold', color: '#1a1a1a' }}>
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          mb: 3,
+        }}
+      >
+        <Typography variant="h4" sx={{ fontWeight: "bold", color: "#1a1a1a" }}>
           Contact Management
         </Typography>
       </Box>
@@ -250,7 +421,9 @@ export default function ContactManagement({ openDialog, onCloseDialog }: Contact
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               InputProps={{
-                startAdornment: <SearchIcon sx={{ mr: 1, color: 'text.secondary' }} />
+                startAdornment: (
+                  <SearchIcon sx={{ mr: 1, color: "text.secondary" }} />
+                ),
               }}
             />
           </Grid>
@@ -292,12 +465,25 @@ export default function ContactManagement({ openDialog, onCloseDialog }: Contact
       <Grid container spacing={2}>
         {filteredContacts.map((contact) => (
           <Grid item xs={12} key={contact.id}>
-            <Card sx={{ position: 'relative' }}>
+            <Card sx={{ position: "relative" }}>
               <CardContent>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <Box
+                  sx={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "flex-start",
+                  }}
+                >
                   <Box sx={{ flex: 1 }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
-                      <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
+                    <Box
+                      sx={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 2,
+                        mb: 1,
+                      }}
+                    >
+                      <Typography variant="h6" sx={{ fontWeight: "bold" }}>
                         {contact.name}
                       </Typography>
                       <Chip
@@ -312,24 +498,41 @@ export default function ContactManagement({ openDialog, onCloseDialog }: Contact
                         size="small"
                       />
                     </Box>
-                    
-                    <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+
+                    <Typography
+                      variant="body2"
+                      color="text.secondary"
+                      sx={{ mb: 1 }}
+                    >
                       {contact.email} • {formatDate(contact.createdAt)}
                     </Typography>
-                    
-                    <Typography variant="subtitle1" sx={{ fontWeight: 'medium', mb: 1 }}>
+
+                    <Typography
+                      variant="subtitle1"
+                      sx={{ fontWeight: "medium", mb: 1 }}
+                    >
                       {contact.subject}
                     </Typography>
-                    
+
                     <Typography variant="body2" sx={{ mb: 2 }}>
-                      {contact.message.length > 150 
-                        ? `${contact.message.substring(0, 150)}...` 
+                      {contact.message.length > 150
+                        ? `${contact.message.substring(0, 150)}...`
                         : contact.message}
                     </Typography>
-                    
+
                     {contact.response && (
-                      <Box sx={{ mt: 2, p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
-                        <Typography variant="body2" sx={{ fontWeight: 'medium', mb: 1 }}>
+                      <Box
+                        sx={{
+                          mt: 2,
+                          p: 2,
+                          bgcolor: "grey.50",
+                          borderRadius: 1,
+                        }}
+                      >
+                        <Typography
+                          variant="body2"
+                          sx={{ fontWeight: "medium", mb: 1 }}
+                        >
                           Response:
                         </Typography>
                         <Typography variant="body2">
@@ -338,7 +541,7 @@ export default function ContactManagement({ openDialog, onCloseDialog }: Contact
                       </Box>
                     )}
                   </Box>
-                  
+
                   <IconButton
                     onClick={(e) => handleMenuClick(e, contact.id)}
                     size="small"
@@ -353,7 +556,7 @@ export default function ContactManagement({ openDialog, onCloseDialog }: Contact
       </Grid>
 
       {filteredContacts.length === 0 && (
-        <Box sx={{ textAlign: 'center', py: 4 }}>
+        <Box sx={{ textAlign: "center", py: 4 }}>
           <Typography variant="h6" color="text.secondary">
             No contacts found
           </Typography>
@@ -366,17 +569,21 @@ export default function ContactManagement({ openDialog, onCloseDialog }: Contact
         open={Boolean(anchorEl)}
         onClose={handleMenuClose}
       >
-        <MenuItem onClick={() => {
-          const contact = contacts.find(c => c.id === selectedContactId);
-          if (contact) handleViewContact(contact);
-        }}>
+        <MenuItem
+          onClick={() => {
+            const contact = contacts.find((c) => c.id === selectedContactId);
+            if (contact) handleViewContact(contact);
+          }}
+        >
           <ViewIcon sx={{ mr: 1 }} />
           View Details
         </MenuItem>
-        <MenuItem onClick={() => {
-          const contact = contacts.find(c => c.id === selectedContactId);
-          if (contact) handleReplyContact(contact);
-        }}>
+        <MenuItem
+          onClick={() => {
+            const contact = contacts.find((c) => c.id === selectedContactId);
+            if (contact) handleReplyContact(contact);
+          }}
+        >
           <ReplyIcon sx={{ mr: 1 }} />
           Reply
         </MenuItem>
@@ -392,13 +599,16 @@ export default function ContactManagement({ openDialog, onCloseDialog }: Contact
 
       {/* View/Reply Dialog */}
       <Dialog
-        open={openDialog}
-        onClose={onCloseDialog}
+        open={Boolean(openDialog || dialogOpenLocal)}
+        onClose={() => {
+          setDialogOpenLocal(false);
+          onCloseDialog();
+        }}
         maxWidth="md"
         fullWidth
       >
         <DialogTitle>
-          {dialogMode === 'view' ? 'Contact Details' : 'Reply to Contact'}
+          {dialogMode === "view" ? "Contact Details" : "Reply to Contact"}
         </DialogTitle>
         <DialogContent>
           {selectedContact && (
@@ -454,7 +664,7 @@ export default function ContactManagement({ openDialog, onCloseDialog }: Contact
                     InputProps={{ readOnly: true }}
                   />
                 </Grid>
-                
+
                 {selectedContact.response && (
                   <Grid item xs={12}>
                     <TextField
@@ -467,8 +677,8 @@ export default function ContactManagement({ openDialog, onCloseDialog }: Contact
                     />
                   </Grid>
                 )}
-                
-                {dialogMode === 'reply' && (
+
+                {dialogMode === "reply" && (
                   <Grid item xs={12}>
                     <TextField
                       fullWidth
@@ -486,17 +696,22 @@ export default function ContactManagement({ openDialog, onCloseDialog }: Contact
           )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={onCloseDialog}>
-            {dialogMode === 'view' ? 'Close' : 'Cancel'}
+          <Button
+            onClick={() => {
+              setDialogOpenLocal(false);
+              onCloseDialog();
+            }}
+          >
+            {dialogMode === "view" ? "Close" : "Cancel"}
           </Button>
-          {dialogMode === 'reply' && (
+          {dialogMode === "reply" && (
             <Button
               onClick={handleSendReply}
               variant="contained"
               disabled={!replyMessage.trim()}
               sx={{
-                backgroundColor: '#E32845',
-                '&:hover': { backgroundColor: '#c41e3a' }
+                backgroundColor: "#E32845",
+                "&:hover": { backgroundColor: "#c41e3a" },
               }}
             >
               Send Reply
@@ -511,7 +726,10 @@ export default function ContactManagement({ openDialog, onCloseDialog }: Contact
         autoHideDuration={6000}
         onClose={() => setSnackbar({ ...snackbar, open: false })}
       >
-        <Alert severity={snackbar.severity} onClose={() => setSnackbar({ ...snackbar, open: false })}>
+        <Alert
+          severity={snackbar.severity}
+          onClose={() => setSnackbar({ ...snackbar, open: false })}
+        >
           {snackbar.message}
         </Alert>
       </Snackbar>
