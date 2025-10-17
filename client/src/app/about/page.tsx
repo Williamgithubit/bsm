@@ -53,19 +53,19 @@ const About = () => {
       number: "150+",
       label: "Athletes Scouted",
       description: "Discovered through our grassroots programs",
-      icon: <FaFutbol className="text-5xl text-[#68c2ca] mb-4 mx-auto" />,
+      icon: <FaFutbol className="text-5xl text-[#E32845] mb-4 mx-auto" />,
     },
     {
       number: "10+",
       label: "Events Hosted",
       description: "Tournaments and training camps organized",
-      icon: <FaTrophy className="text-5xl text-[#68c2ca] mb-4 mx-auto" />,
+      icon: <FaTrophy className="text-5xl text-[#E32845] mb-4 mx-auto" />,
     },
     {
       number: "5+",
       label: "Communities Impacted",
       description: "Through equipment donations and outreach",
-      icon: <FaUsers className="text-5xl text-[#68c2ca] mb-4 mx-auto" />,
+      icon: <FaUsers className="text-5xl text-[#E32845] mb-4 mx-auto" />,
     },
   ];
 
@@ -124,8 +124,8 @@ const About = () => {
               Our mission is to build champions by providing world-class training, organizing tournaments, and supporting communities through outreach programs like equipment donations.
             </p>
             <div className="grid grid-cols-2 gap-6">
-              <div className="bg-white p-6 rounded-lg shadow-md border border-gray-100 hover:border-[#68c2ca] transition-colors duration-300">
-                <div className="flex items-center justify-center text-[#68c2ca] mb-2">
+              <div className="bg-white p-6 rounded-lg shadow-md border border-gray-100 hover:border-[#E32845] transition-colors duration-300">
+                <div className="flex items-center justify-center text-[#E32845] mb-2">
                   <MdDateRange className="text-3xl mr-2" />
                   <span className="text-3xl font-bold text-[#03045e]">
                     2020
@@ -133,8 +133,8 @@ const About = () => {
                 </div>
                 <div className="text-gray-600 text-center">Founded</div>
               </div>
-              <div className="bg-white p-6 rounded-lg shadow-md border border-gray-100 hover:border-[#68c2ca] transition-colors duration-300">
-                <div className="flex items-center justify-center text-[#68c2ca] mb-2">
+              <div className="bg-white p-6 rounded-lg shadow-md border border-gray-100 hover:border-[#E32845] transition-colors duration-300">
+                <div className="flex items-center justify-center text-[#E32845] mb-2">
                   <MdLocationOn className="text-3xl mr-2" />
                   <span className="text-3xl font-bold text-[#03045e]">5</span>
                 </div>
@@ -162,7 +162,7 @@ const About = () => {
                 <h2 className="text-3xl font-bold mb-4">
                   Message From Our Founder
                 </h2>
-                <div className="w-20 h-1 bg-[#68c2ca] mx-auto mb-6"></div>
+                <div className="w-20 h-1 bg-[#E32845] mx-auto mb-6"></div>
                 <p className="text-blue-100 max-w-3xl mx-auto">
                   Leading the charge in transforming football in Liberia
                 </p>
@@ -241,7 +241,7 @@ const About = () => {
               </div>
             </div>
             {/* Decorative elements */}
-            <div className="absolute -right-20 -top-20 w-64 h-64 bg-[#68c2ca] rounded-full mix-blend-multiply filter blur-3xl opacity-20"></div>
+            <div className="absolute -right-20 -top-20 w-64 h-64 bg-[#E32845] rounded-full mix-blend-multiply filter blur-3xl opacity-20"></div>
             <div className="absolute -left-20 -bottom-20 w-64 h-64 bg-[#03045e] rounded-full mix-blend-multiply filter blur-3xl opacity-20"></div>
           </div>
         </div>
@@ -277,7 +277,7 @@ const About = () => {
               <h2 className="text-3xl font-bold text-[#03045e] mb-4">
                 Our Team
               </h2>
-              <div className="w-20 h-1 bg-[#68c2ca] mx-auto mb-6"></div>
+              <div className="w-20 h-1 bg-[#E32845] mx-auto mb-6"></div>
               <p className="text-xl text-gray-600 max-w-3xl mx-auto">
                 Meet our dedicated team of coaches and managers passionate about football and youth empowerment
               </p>

@@ -12,6 +12,8 @@ interface PageProps {
   };
 }
 
+
+
 export default async function BlogPostPage({ params }: PageProps) {
   const post = await getBlogPostBySlug(params.slug);
 

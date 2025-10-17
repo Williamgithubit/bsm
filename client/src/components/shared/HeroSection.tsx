@@ -33,7 +33,7 @@ const HeroSection = () => {
                 href="/programs"
                 variant="secondary"
                 size="lg"
-                className="rounded-md bg-[#68c2ca] hover:text-[#03045e] hover:bg-[#30ddec]"
+                className="rounded-md bg-[#E32845] hover:text-[#03045e] hover:bg-[#30ddec]"
               >
                 Explore Programs
               </Button>
@@ -42,7 +42,7 @@ const HeroSection = () => {
                 href="/contact"
                 variant="custom"
                 size="lg"
-                className="rounded-md border-[#68c2ca] text-[#68c2ca] hover:bg-[#68c2ca] hover:text-[#03045e]"
+                className="rounded-md border-[#E32845] text-[#E32845] hover:bg-[#E32845] hover:text-[#03045e]"
               >
                 Join BSM
               </Button>
@@ -55,14 +55,14 @@ const HeroSection = () => {
 
             {/* Counters - repositioned responsively */}
             <div className="absolute bottom-3 left-3 sm:bottom-4 sm:left-4 bg-white p-4 sm:p-6 rounded-lg shadow-lg z-10">
-              <div className="text-2xl sm:text-3xl font-bold text-[#68c2ca]">
+              <div className="text-2xl sm:text-3xl font-bold text-[#E32845]">
                 <Counter end={150} duration={2000} />+
               </div>
               <div className="text-gray-600 text-sm sm:text-base">Athletes Trained</div>
             </div>
 
             <div className="absolute top-3 right-3 sm:top-4 sm:right-4 bg-white p-4 sm:p-6 rounded-lg shadow-lg z-10">
-              <div className="text-2xl sm:text-3xl font-bold text-[#68c2ca]">
+              <div className="text-2xl sm:text-3xl font-bold text-[#E32845]">
                 <Counter end={10} duration={2000} />+
               </div>
               <div className="text-gray-600 text-sm sm:text-base">Events Hosted</div>

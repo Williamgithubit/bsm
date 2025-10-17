@@ -3,7 +3,7 @@ import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { motion } from "framer-motion";
-import { FiCalendar, FiClock, FiArrowLeft } from "react-icons/fi";
+import { FiCalendar, FiClock, FiArrowLeft, FiEye } from "react-icons/fi";
 import { FaFacebook, FaTwitter, FaLinkedin } from "react-icons/fa";
 import Button from "@/components/ui/Button";
 import type { BlogPost } from "@/types/blog";
@@ -66,21 +66,49 @@ export default function BlogPostContent({ initialPost }: BlogPostProps) {
     loadInteractions();
   }, [post.id]);
 
-  const formatDate = (timestamp: string | null) => {
-    if (!timestamp) return new Date().toLocaleDateString("en-US");
+  const formatDate = (timestamp: string | null | undefined) => {
+    if (!timestamp) return 'No date available';
+    
+    try {
+      const date = new Date(timestamp);
+      if (isNaN(date.getTime())) {
+        throw new Error('Invalid date');
+      }
+      
+      return new Intl.DateTimeFormat('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+      }).format(date);
+    } catch (error) {
+      console.error('Error formatting date:', error);
+      return 'Date not available';
+    }
+  };
 
-    const date = new Date(timestamp);
-    const options: Intl.DateTimeFormatOptions = {
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-    };
-    return date.toLocaleDateString("en-US", options);
+  const cleanHtml = (html: string): string => {
+    if (typeof document === 'undefined') {
+      // Fallback for server-side rendering
+      return html.replace(/<[^>]*>?/gm, '');
+    }
+    
+    const div = document.createElement('div');
+    div.innerHTML = html;
+    return div.textContent || div.innerText || '';
+  };
+
+  const getExcerpt = (content: string, maxLength: number = 160): string => {
+    const text = cleanHtml(content);
+    return text.length > maxLength 
+      ? `${text.substring(0, maxLength).trim()}...` 
+      : text;
   };
 
   const calculateReadTime = (content: string) => {
+    // Remove HTML tags before counting words
+    const text = cleanHtml(content);
     const wordsPerMinute = 200;
-    const wordCount = content.split(/\s+/).length;
+    const wordCount = text.split(/\s+/).length;
     const readTime = Math.ceil(wordCount / wordsPerMinute);
     return `${readTime} min read`;
   };
@@ -150,7 +178,7 @@ export default function BlogPostContent({ initialPost }: BlogPostProps) {
               {post.title}
             </h1>
             <p className="text-xl text-gray-600 mb-6 max-w-3xl mx-auto">
-              {post.excerpt}
+              {post.excerpt ? cleanHtml(post.excerpt) : getExcerpt(post.content)}
             </p>
 
             {/* Meta Information */}
@@ -163,7 +191,9 @@ export default function BlogPostContent({ initialPost }: BlogPostProps) {
                 <FiClock className="mr-2" />
                 {calculateReadTime(post.content)}
               </div>
-              <div className="flex items-center">👁️ {post.views} views</div>
+              <div className="flex items-center">
+                <FiEye className="mr-1" /> {post.views} views
+              </div>
             </div>
 
             {/* Author Info */}
@@ -225,7 +255,7 @@ export default function BlogPostContent({ initialPost }: BlogPostProps) {
           <div
             className="prose prose-lg max-w-none prose-headings:text-gray-900 prose-p:text-gray-700 prose-a:text-[#000054] prose-strong:text-gray-900"
             dangerouslySetInnerHTML={{
-              __html: post.content.trim(),
+              __html: post.content ? post.content.trim() : '<p>No content available</p>',
             }}
           />
         </motion.div>

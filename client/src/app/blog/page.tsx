@@ -73,22 +73,67 @@ const Blog = () => {
     return matchesSearch && matchesCategory;
   });
 
-  const formatDate = (timestamp: string | null) => {
-    if (!timestamp) return new Date().toLocaleDateString("en-US");
+  // Function to safely format dates
+  const formatDate = (timestamp: any) => {
+    try {
+      // Handle Firebase Timestamp
+      if (timestamp && typeof timestamp === 'object' && 'toDate' in timestamp) {
+        timestamp = timestamp.toDate();
+      }
+      
+      const date = timestamp ? new Date(timestamp) : new Date();
+      
+      if (isNaN(date.getTime())) {
+        console.error('Invalid date:', timestamp);
+        return 'Date not available';
+      }
+      
+      return new Intl.DateTimeFormat('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+      }).format(date);
+    } catch (error) {
+      console.error('Error formatting date:', error, 'Timestamp:', timestamp);
+      return 'Date not available';
+    }
+  };
 
-    const date = new Date(timestamp);
-    const options: Intl.DateTimeFormatOptions = {
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-    };
-    return date.toLocaleDateString("en-US", options);
+  // Function to clean HTML from text and decode HTML entities
+  const cleanHtml = (html: string): string => {
+    if (!html) return '';
+    
+    // Create a temporary div element
+    const tmp = document.createElement('div');
+    
+    // Set the HTML content (this automatically decodes entities)
+    tmp.innerHTML = html;
+    
+    // Get the text content (strips HTML tags)
+    const text = tmp.textContent || tmp.innerText || '';
+    
+    // Clean up any remaining HTML entities and extra whitespace
+    return text
+      .replace(/&[a-z0-9]+;|&#[0-9]+;|&#x[0-9a-f]+;/gi, ' ') // Replace HTML entities with spaces
+      .replace(/\s+/g, ' ') // Replace multiple spaces with a single space
+      .trim();
+  };
+
+  // Function to get excerpt from content
+  const getExcerpt = (content: string, maxLength: number = 160): string => {
+    if (!content) return '';
+    const text = cleanHtml(content);
+    return text.length > maxLength 
+      ? `${text.substring(0, maxLength).trim()}...` 
+      : text;
   };
 
   const calculateReadTime = (content: string) => {
+    if (!content) return '1 min read';
+    const text = cleanHtml(content);
     const wordsPerMinute = 200;
-    const wordCount = content.split(/\s+/).length;
-    const readTime = Math.ceil(wordCount / wordsPerMinute);
+    const wordCount = text.split(/\s+/).length;
+    const readTime = Math.max(1, Math.ceil(wordCount / wordsPerMinute));
     return `${readTime} min read`;
   };
 
@@ -169,6 +214,7 @@ const Blog = () => {
                     />
                   </div>
                 </div>
+                
                 <div className="p-8 md:w-1/2 flex flex-col justify-center">
                   <div className="uppercase tracking-wide text-sm text-[#E32845] font-semibold mb-2">
                     Featured Post
@@ -177,8 +223,7 @@ const Blog = () => {
                     {filteredPosts[0].title}
                   </h2>
                   <p className="mt-2 text-gray-600 mb-6">
-                    {filteredPosts[0].excerpt ||
-                      filteredPosts[0].content.substring(0, 200) + "..."}
+                    {getExcerpt(filteredPosts[0].excerpt || filteredPosts[0].content, 200)}
                   </p>
                   <div className="flex items-center text-sm text-gray-500 mb-6">
                     <span className="flex items-center mr-4">
@@ -276,7 +321,7 @@ const Blog = () => {
                     {post.title}
                   </h3>
                   <p className="text-gray-600 mb-4 line-clamp-2">
-                    {post.excerpt || post.content.substring(0, 150) + "..."}
+                    {getExcerpt(post.excerpt || post.content, 150)}
                   </p>
                   <div className="flex justify-between items-center">
                     <span className="flex items-center text-sm text-gray-500">

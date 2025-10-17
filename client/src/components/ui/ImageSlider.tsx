@@ -84,7 +84,7 @@ const ImageSlider = ({ images, interval = 30000 }: ImageSliderProps) => {
               key={index}
               onClick={() => goToSlide(index)}
               className={`w-3 h-3 rounded-full transition-all duration-300 ${
-                index === currentIndex ? 'bg-[#30ddec] w-6' : 'bg-white bg-opacity-50'
+                index === currentIndex ? 'bg-[#E32845] w-6' : 'bg-white bg-opacity-50'
               }`}
               aria-label={`Go to slide ${index + 1}`}
             />

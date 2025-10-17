@@ -15,7 +15,7 @@ const StatsSection = () => {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 text-center">
           {stats.map((stat, index) => (
             <div key={index} className="bg-white p-8 rounded-lg shadow-md border border-gray-100">
-              <div className="text-4xl font-bold text-[#03045e] mb-2">
+              <div className="text-4xl font-bold text-[#E32845] mb-2">
                 <Counter 
                   end={stat.number} 
                   suffix={stat.suffix}

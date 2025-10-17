@@ -93,7 +93,10 @@ const BlogComment: React.FC<BlogCommentProps> = ({
                 <div className="flex items-center justify-between mb-2">
                   <span className="font-medium">{comment.userName}</span>
                   <span className="text-sm text-gray-500">
-                    {format(comment.createdAt.toDate(), "MMM d, yyyy")}
+                    {format(
+                      typeof comment.createdAt === 'object' ? comment.createdAt.toDate() : new Date(comment.createdAt),
+                      "MMM d, yyyy"
+                    )}
                   </span>
                 </div>
                 <p className="text-gray-700">{comment.content}</p>
